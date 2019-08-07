@@ -11,6 +11,8 @@ e=1.60217662*10^-19;
 % asp=2.5;        % Small devices of new mask
 asp=24;         % Large devices of new mask
 thick=5*10^-9; % Thickness of sample layer
+% thick=input('Please enter the thickness of samples in nanometers\n')
+% thick=thick*10^-9; % Nanometer
 
 %% Import data name
 fileName=dir(fullfile('*.txt'));
@@ -18,7 +20,6 @@ fileName=dir(fullfile('*.txt'));
 %The path should be changed to what you want.
 number=length(fileName);
 % Claim variables.
-temForCheck=[];
 hall=[];
 bH=[];
 rH=[];
@@ -37,7 +38,8 @@ kf=[];
 bi=[];
 bso=[];
 directionForTag=string;
-temperatureForNum=string;
+temperatureForCheck=string;
+temperatureForNum=[];
 temperatureForTag=string;
 
 %% Import data
@@ -51,12 +53,17 @@ for i=1:number
     % ‘§∑÷≈‰ƒ⁄¥Ê£ø
     directionForTag(end+1)=direction{1};
     temperature=regexp(fileName(i).name,patternTemperature, 'match');
-    
+    temperatureForCheck(end+1)=temperature{1};
     temperatureForNum(end+1)=str2num(temperature{1});
-    temperatureForTag(end+1)=temperature{1};
+    temperatureForTag(end+1)=[temperature{1},' K'];
     
     [x,y] = importfile(fileName(i).name);
-    
+    % Remove zero
+    m=find(~y);
+    if isempty(m)==0
+        x(m(1)-1:end)=[];
+        y(m(1)-1:end)=[];
+    end
     
     if direction=="x"
         eval(['hxx_',temperature{1},'K=x;'])
@@ -67,13 +74,23 @@ for i=1:number
     else
         "Something wrong with file name"
     end
-    
-    
-    
-    
+    clearvars x y m direction temperature
+end
+temperatureForTag(1)=[];
+temperatureForTag=strip(temperatureForTag,'left','0');
+temperatureForCheck(1)=[];
+temperatureForCheck=convertStringsToChars(temperatureForCheck);
 
+%% rHall vs B
+figure
+for i=1:number/2
+   eval(['plot(hxy_',temperatureForCheck{i},'K,rxy_',temperatureForCheck{i},'K,''Linewidth'',2)'])
+%    plot(bH(:,i),rH(:,i),'Linewidth',2)
+   xlabel {H (T)}
+   ylabel {R_{xy} (\Omega)}
+   grid on
+   hold on
     
-%     clearvars y isNegative magneticField thickness
 end
 
 
