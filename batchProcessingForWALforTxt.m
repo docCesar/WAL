@@ -110,6 +110,7 @@ temForLegend=transpose(temForCheck(1,1:number/2));
 temForLegend=num2str(temForLegend);
 title('Hall resistance')
 legend(temForLegend)
+set(gca, 'linewidth', 1.1, 'fontsize', 20, 'fontname', 'times')
 
 %% Hall calibration
 tem=rH(:,number/2+1:end);
@@ -152,11 +153,14 @@ for i=1:number/2
     figure( 'Name', 'untitled fit 1' );
     plotH = plot( fitresult, xData, yData );
     legend( plotH, 'rH vs. bH', 'untitled fit 1', 'Location', 'NorthEast' );
+    set(gca, 'linewidth', 1.1, 'fontsize', 20, 'fontname', 'times')
     % Label axes
     xlabel bH
     ylabel rH
     grid on
 
+
+    
 % Properties from Hall fitting.
 ne(i)=abs(1/e/hall(i));
 mu(i)=e^2/h*max(gWAL(:,i))/e/ne(i);
@@ -176,6 +180,7 @@ figure
 for i=1:number/2
    
    plot(bWAL(:,i),rWAL(:,i),'Linewidth',2)
+   set(gca, 'linewidth', 1.1, 'fontsize', 20, 'fontname', 'times')
    xlabel {B (T)}
    ylabel {R_{xx} (\Omega)}
    grid on
@@ -198,12 +203,13 @@ for i=1:number/2
 end
 title('Longitude resistance(Normalized)')
 legend(temForLegend,'Location','SouthEast')
+set(gca, 'linewidth', 1.1, 'fontsize', 20, 'fontname', 'times')
 
 
 %% Gxx(Normalized) vs B
 figure
 for i=1:number/2
-   temy=(gWAL(:,i)-min(gWAL(:,i)))./min(gWAL(:,i));
+   temy=(gWAL(:,i)-max(gWAL(:,i)))./max(gWAL(:,i));
    plot(bWAL(:,i),temy,'Linewidth',2)
    xlabel {B (T)}
    ylabel {G_{xx}(Normalized)}
@@ -213,6 +219,8 @@ for i=1:number/2
 end
 title('Longitude resistance(Normalized)')
 legend(temForLegend,'Location','NorthEast')
+set(gca, 'linewidth', 1.1, 'fontsize', 20, 'fontname', 'times')
+
 %% WAL fitting
 % Pretreatment of data.
 bWAL=abs(bWAL);     % Get the abstract of bWAL.
@@ -252,17 +260,29 @@ for i=1:number/2
     
     % Plot fit with data.
     figure( 'Name', 'untitled fit 1' );
-    scatter( xData, yData,'o' );
+    scatter( xData, yData,'o','LineWidth',1.5 );
     box on
     hold on
     plot( fitresult, xData, yData );
     legend( 'gWALhalf vs. bWALhalf', 'untitled fit 1', 'Location', 'NorthEast' );
+    set(gca, 'linewidth', 1.1, 'fontsize', 20, 'fontname', 'times')
     % Label axes
     xlabel bWALhalf
     ylabel gWALhalf
     grid on
     
-    
+%     figure(100);
+%     scatter(xData, yData,'o')
+%     hold on
+%     pp=plot( fitresult)
+%     pp.LineWidth=2.5
+%     set(gca, 'linewidth', 1.1, 'fontsize', 20, 'fontname', 'times')
+%     % Label axes
+%     xlabel {H (T)}
+%     ylabel {\Delta\sigma (e^2/h)}
+%     grid on
+%     box on
+%     hold on
     
 end
 
@@ -278,7 +298,7 @@ mu=mu.*10000;
 
 %% Ne vs temperature
 figure
-scatter(temForCheck(1:number/2),ne,'o');
+scatter(temForCheck(1:number/2),ne,'o','LineWidth',1.5);
 xlim([0 1.1*max(temForCheck)])
 % upLim=max(ne)+0.1*(max(ne)-min(ne));
 % downLim=min(ne)-0.1*(max(ne)-min(ne));
@@ -287,109 +307,132 @@ xlim([0 1.1*max(temForCheck)])
 
 xlabel {T (K)}
 ylabel {n_e (cm^{-3})}
+set(gca, 'linewidth', 1.1, 'fontsize', 20, 'fontname', 'times')
+grid on
+box on
+
+%% 1/tauso vs T
+figure
+scatter(temForCheck(1:number/2),1./tauso,'o','LineWidth',1.5);
+xlim([0 1.1*max(temForCheck)])
+% ylim([0.999*min(dif) 1.001*max(dif)])
+xlabel {T (K)}
+ylabel {1/\tau_{SO} (s^{-1})}
+set(gca, 'linewidth', 1.1, 'fontsize', 20, 'fontname', 'times')
 grid on
 box on
 
 %% D vs temperature
 figure
-scatter(temForCheck(1:number/2),dif,'o');
+scatter(temForCheck(1:number/2),dif,'o','LineWidth',1.5);
 xlim([0 1.1*max(temForCheck)])
 % ylim([0.999*min(dif) 1.001*max(dif)])
 xlabel {T (K)}
 ylabel {D (cm^2/s)}
+set(gca, 'linewidth', 1.1, 'fontsize', 20, 'fontname', 'times')
 grid on
 box on
 
 %% L_SO vs temperature
 figure
-scatter(temForCheck(1:number/2),lso,'o');
+scatter(temForCheck(1:number/2),lso,'o','LineWidth',1.5);
 xlim([0 1.1*max(temForCheck)])
 % ylim([0.999*min(dif) 1.001*max(dif)])
 xlabel {T (K)}
 ylabel {L_{SO} (m)}
+set(gca, 'linewidth', 1.1, 'fontsize', 20, 'fontname', 'times')
 grid on
 box on
 
 %% L_Phi vs temperature
 figure
-scatter(temForCheck(1:number/2),lphi,'o');
+scatter(temForCheck(1:number/2),lphi,'o','LineWidth',1.5);
 xlim([0 1.1*max(temForCheck)])
 % ylim([0.999*min(dif) 1.001*max(dif)])
 xlabel {T (K)}
 ylabel {L(\phi) (m)}
+set(gca, 'linewidth', 1.1, 'fontsize', 20, 'fontname', 'times')
 grid on
 box on
 
 %% L_SO vs D
 figure
-scatter(dif,lso,'o');
+scatter(dif,lso,'o','LineWidth',1.5);
 % xlim([0 1.1*max(temForCheck)])
 % ylim([0.999*min(dif) 1.001*max(dif)])
 xlabel {D (m^2/s)}
 ylabel {L(\phi) (m)}
+set(gca, 'linewidth', 1.1, 'fontsize', 20, 'fontname', 'times')
 grid on
 box on
 
 %% Tau_SO vs Tau_p
 figure
-scatter(taup,tauso,'o');
+scatter(taup,tauso,'o','LineWidth',1.5);
 xlabel {\tau_p (s)}
 ylabel {\tau_{SO} (s)}
+set(gca, 'linewidth', 1.1, 'fontsize', 20, 'fontname', 'times')
 grid on
 box on
 
 %% Tau_SO vs D
 figure
-scatter(dif,tauso,'o');
+scatter(dif,tauso,'o','LineWidth',1.5);
 xlabel {D (cm^2/s)}
 ylabel {\tau_{SO} (s)}
+set(gca, 'linewidth', 1.1, 'fontsize', 20, 'fontname', 'times')
 grid on
 box on
 
 %% mu vs temperature
 figure
-scatter(temForCheck(1:number/2),mu,'o');
+scatter(temForCheck(1:number/2),mu,'o','LineWidth',1.5);
 xlim([0 1.1*max(temForCheck)])
 xlabel {T (K)}
 ylabel {\mu (cm^2/V/s)}
+set(gca, 'linewidth', 1.1, 'fontsize', 20, 'fontname', 'times')
 grid on
 box on
 
 %% Tau_SO vs temperature
 figure
-scatter(temForCheck(1:number/2),tauso,'o');
+scatter(temForCheck(1:number/2),tauso,'o','LineWidth',1.5);
 xlim([0 1.1*max(temForCheck)])
 % ylim([0.999*min(dif) 1.001*max(dif)])
 xlabel {T (K)}
 ylabel {\tau_{SO} (s)}
+set(gca, 'linewidth', 1.1, 'fontsize', 20, 'fontname', 'times')
 grid on
 box on
 
 %% Tau_p vs temperature
 figure
-scatter(temForCheck(1:number/2),taup,'o');
+scatter(temForCheck(1:number/2),taup,'o','LineWidth',1.5);
 xlim([0 1.1*max(temForCheck)])
 % ylim([0.999*min(dif) 1.001*max(dif)])
 xlabel {T (K)}
 ylabel {\tau_p (s)}
+set(gca, 'linewidth', 1.1, 'fontsize', 20, 'fontname', 'times')
 grid on
 box on
 
 %% vf vs temperature
 figure
-scatter(temForCheck(1:number/2),vf,'o');
+scatter(temForCheck(1:number/2),vf,'o','LineWidth',1.5);
 xlim([0 1.1*max(temForCheck)])
 xlabel {T (K)}
 ylabel {v_f }
+set(gca, 'linewidth', 1.1, 'fontsize', 20, 'fontname', 'times')
 grid on
 box on
 
 %% Bso vs temperature
 figure
-scatter(temForCheck(1:number/2),bso,'o');
+scatter(temForCheck(1:number/2),bso,'o','LineWidth',1.5);
 xlim([0 1.1*max(temForCheck)])
 xlabel {T (K)}
 ylabel {B_{SO} (T)}
+set(gca, 'linewidth', 1.1, 'fontsize', 20, 'fontname', 'times')
 grid on
 box on
 
