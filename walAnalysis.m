@@ -7,12 +7,22 @@ me=9.10938356*10^(-31);
 e=1.60217662*10^-19;
 
 % Parameters of samples
+dimension=2;
 % asp=4;          % Old mask
 % asp=2.5;        % Small devices of new mask
 asp=24;         % Large devices of new mask
-thick=5*10^-9; % Thickness of sample layer
-% thick=input('Please enter the thickness of samples in nanometers\n')
+% thick=5*10^-9; % Thickness of sample layer
+thick=input('Please enter the thickness of samples in nanometers\n')
 % thick=thick*10^-9; % Nanometer
+fittingView=false;
+fittingView=input('Do you want to check the status of fitting curve ?\nPlease enter 1 for YES or 0 for NO.\n')
+fittingView=logical(fittingView)
+generalView=true;
+
+% if fittingView ~= (1 | 0)
+%     fprintf("Wrong value of view setting. \nYou should enter 1 or 0.\n")
+%     return
+% end
 
 %% Import data name
 fileName=dir(fullfile('*.txt'));
@@ -20,6 +30,10 @@ fileName=dir(fullfile('*.txt'));
 %The path should be changed to what you want.
 number=length(fileName);
 % Claim variables.
+
+% Format of dataRaw: {Temperature, hxx, rxx, gxx, hxy, rxy, rxyCali}
+dataRaw=cell(number/2,7);
+
 hall=[];
 mu=[];
 taup=[];
@@ -33,6 +47,7 @@ bso=[];
 directionForTag=string;
 temperatureForCheck=string;
 temperatureForNum=[];
+
 temperatureForTag=string;
 
 %% Import data
@@ -43,67 +58,82 @@ for i=1:number
     patternDirection = '(?<=Rx)\w(?=_)';
     patternTemperature = '(?<=Rx(x|y)_)\d*(?=K_)';
     direction=regexp(fileName(i).name,patternDirection, 'match');
-    % Ô¤·ÖÅäÄÚ´æ£¿
+
     directionForTag(end+1)=direction{1};
     temperature=regexp(fileName(i).name,patternTemperature, 'match');
     temperatureForCheck(end+1)=temperature{1};
-    temperatureForNum(end+1)=str2num(temperature{1});
     temperatureForTag(end+1)=[temperature{1},' K'];
+    temperatureForNum(end+1)=str2num(temperature{1});
+    
+    isReadTem=~isempty(find([dataRaw{:,1}]==temperatureForNum(i)));
+    if isReadTem==0
+        j=i;
+    elseif isReadTem==1
+        j=find([dataRaw{:,1}]==temperatureForNum(i));
+    else
+        "Wrong 1"
+        return
+    end
     
     [x,y] = importfile(fileName(i).name);
     % Remove zero
-    m=find(~y);
+    m=find(~x);
+    
     if isempty(m)==0
         x(m(1)-1:end)=[];
         y(m(1)-1:end)=[];
-    end
+    end    
+    
     x=x./1000;
+    dataRaw{j,1}=temperatureForNum(i);
     if direction=="x"
-        eval(['hxx_',temperature{1},'K=x;'])
-        eval(['rxx_',temperature{1},'K=abs(y);'])
-        eval(['gxx_',temperature{1},'K=asp*h/(e^2)./abs(y);'])
+        dataRaw{j,2}=x;
+        dataRaw{j,3}=abs(y);
+        dataRaw{j,4}=asp*h/(e^2)./abs(y);
     elseif direction=="y"
-        eval(['hxy_',temperature{1},'K=x;'])
-        eval(['rxy_',temperature{1},'K=y;'])
-        eval(['gxy_',temperature{1},'K=asp*h/(e^2)./y;'])
+        dataRaw{j,5}=x;
+        dataRaw{j,6}=y;
+        temR=dataRaw{j,6};
+        temR=flipud(temR);
+        dataRaw{j,7}=(dataRaw{j,6}-temR)./2;
     else
-        "Something wrong with file name"
+        "Something wrong with file name. Wrong 2"
         return
     end
-    clearvars x y m direction temperature;
+    
+    clearvars x y m direction temperature j temR;
 end
 temperatureForTag(1)=[];
 temperatureForTag=strip(temperatureForTag,'left','0');
 temperatureForCheck(1)=[];
 temperatureForCheck=convertStringsToChars(temperatureForCheck);
 
+% Check data (wrong files)
+for i=1:number/2
+    for j=2:7
+        if isempty(dataRaw{i,j})==1
+          "Wrong 3"
+          return
+        end
+    end
+end
+clearvars i j
 %% rHall vs H
 figure
 for i=1:number/2
-   eval(['plot(hxy_',temperatureForCheck{i},'K,rxy_',temperatureForCheck{i},'K,''Linewidth'',2)'])
+   getPlot(dataRaw{i,5},dataRaw{i,6},generalView,"R_{xy} vs H")
    xlabel {H (T)}
    ylabel {R_{xy} (\Omega)}
-   grid on
    hold on
     
 end
 title('Hall resistance')
 legend(temperatureForTag(1:number/2))
 
-%% Hall calibration
-for i=1:number/2
-    eval(['temR=rxy_',temperatureForCheck{i},'K;'])
-    temR=flipud(temR);
-    eval(['rxyCali_',temperatureForCheck{i},'K=(rxy_',temperatureForCheck{i},...
-        'K-temR)./2;'])
-end
-clearvars temR;
 
 %% Hall fitting
 for i=1:number/2
-    eval(['[xData, yData] = prepareCurveData( hxy_',temperatureForCheck{i},...
-        'K, rxyCali_',temperatureForCheck{i},'K);'])
-%     [xData, yData] = prepareCurveData( bH(:,i+number/2), rHN(:,i+number/2) );
+    [xData, yData] = prepareCurveData(dataRaw{i,5},dataRaw{i,7});
 
     % Set up fittype and options.
     ft = fittype( 'p1*x+p2', 'independent', 'x', 'dependent', 'y' );
@@ -121,67 +151,74 @@ for i=1:number/2
     hall(end+1)=abs(fitresult.p1);
     
     % Plot fit with data.
-    figure( 'Name',strcat("Hall factor fitting for ",temperatureForTag(i)) );
-    plotH = plot( fitresult, xData, yData ,'o');
-    legend( plotH, 'Data points', 'Fitting curve', 'Location', 'NorthEast' );
-    title(strcat("Hall factor fitting for ",temperatureForTag(i)))
+    getFitPlot(fitresult,xData,yData,fittingView,strcat("Hall fitting result of ",temperatureForTag(i)));
+
     % Label axes
     xlabel {H (T)}
     ylabel {R_{xy} (\Omega)}
-    grid on
 
     % Properties from Hall fitting.
     ne(i)=abs(1/e/hall(i));
-    eval(['mu(i)=e^2/h*max(gxx_',temperatureForCheck{i},'K)/e/ne(i);'])
+    mu(i)=e^2/h*max(dataRaw{i,4})/e/ne(i);
     taup(i)=me/e*mu(i);
-    kf(i)=(2*pi*ne(i))^(1/2);  % 2D case.
-    %kf(i)=(3*pi^2*ne)^(1/3);  % 3D case.
+    
+    if dimension == 2
+        kf(i)=(2*pi*ne(i))^(1/2);
+    elseif dimension == 3
+        kf(i)=(3*pi^2*ne)^(1/3);
+    else
+        "Wrong 4"
+        return
+    end
+    
     vf(i)=hbar/me*kf(i);
     dif(i)=vf(i)^2*taup(i)/2;
     be(i)=hbar/(4*e*dif(i)*taup(i));
 
 end
-"Hall fitting finished"
+fprintf("Hall fitting finished.\nWaiting for WAL fitting.\n")
 
 
 %% Rxx vs B
+% Format of dataRaw: {Temperature, hxx, rxx, gxx, hxy, rxy, rxyCali}
 figure
 for i=1:number/2
-   eval(['plot(hxx_',temperatureForCheck{i},'K,rxx_',temperatureForCheck{i},...
-       'K,''Linewidth'',2)'])
-   xlabel {H (T)}
-   ylabel {R_{xx} (\Omega)}
-   grid on
-   hold on
+    getPlot(dataRaw{i,2},dataRaw{i,3},generalView,"R_{xx} vs B")
+    xlabel {H (T)}
+    ylabel {R_{xx} (\Omega)}
+    hold on
     
 end
 title('Longitude resistance')
-legend(temperatureForTag(1:number/2),'Location','best')
+legend(temperatureForTag(1:number/2),'Location','northeastoutside')
 
 %% Gxx(Normalized) vs B
-figure
+% Format of dataRaw: {Temperature, hxx, rxx, gxx, hxy, rxy, rxyCali}
+figure('Name',"Gxx(Normalized) vs B")
+gxxNor=cell(number/2,3);
+% Format of gxxNor: {Temperature, hxx, gxxNor}
+gxxNor(:,1:2)=dataRaw(:,1:2);
 for i=1:number/2
-   eval(['temY=gxx_',temperatureForCheck{i},'K;'])
-   eval(['gxx_',temperatureForCheck{i},'K_Nor=(temY-max(temY))./max(temY);'])
-   eval(['plot(hxx_',temperatureForCheck{i},'K,gxx_',temperatureForCheck{i},...
-       'K_Nor,''Linewidth'',2)'])
-   xlabel {H (T)}
-   ylabel {G_{xx}(Normalized)}
-   grid on
-   hold on
-   clearvars temY
+    temY=dataRaw{i,4};
+    gxxNor{i,3}=(temY-max(temY))./max(temY);
+    getPlot(gxxNor{i,2},gxxNor{i,3},generalView,"Gxx(Normalized) vs B");
+    xlabel {H (T)}
+    ylabel {G_{xx}(Normalized)}
+    hold on
+    clearvars temY
 end
 title('Longitude resistance(Normalized)')
-legend(temperatureForTag(1:number/2),'Location','best')
+legend(temperatureForTag(1:number/2),'Location','northeastoutside')
 
 %% WAL fitting
+% Format of dataRaw: {Temperature, hxx, rxx, gxx, hxy, rxy, rxyCali}
 
 
 for i=1:number/2
     % Pretreatment of data.
     % Get the abstract of hxx.
-    eval(['xWal= abs(hxx_',temperatureForCheck{i},'K);'])
-    eval(['yWal= gxx_',temperatureForCheck{i},'K-max(gxx_',temperatureForCheck{i},'K);'])
+    xWal = abs(dataRaw{i,2});
+    yWal = dataRaw{i,4}-max(dataRaw{i,4});
     [xData, yData] = prepareCurveData( xWal, yWal );  
     
     % Set up fittype and options.
@@ -204,14 +241,15 @@ for i=1:number/2
     bi(end+1)=fitresult.bi;
     
     % Plot fit with data.
-    figure( 'Name', strcat("WAL fitting for ",temperatureForTag(i)) );
-    plot( fitresult, xData, yData ,'o');
-    legend( 'Data points', 'Fitting curve', 'Location', 'NorthEast' );
-    title(strcat("WAL fitting for ",temperatureForTag(i)))
+    getFitPlot(fitresult,xData,yData,fittingView,strcat("WAL fitting result of ",temperatureForTag(i)));
+%     figure( 'Name', strcat("WAL fitting for ",temperatureForTag(i)) );
+%     plot( fitresult, xData, yData ,'o');
+%     legend( 'Data points', 'Fitting curve', 'Location', 'NorthEast' );
+%     title(strcat("WAL fitting for ",temperatureForTag(i)))
     % Label axes
-    xlabel {|H| (T)}
+    xlabel {|H_{ex}| (T)}
     ylabel \DeltaG
-    grid on
+%     grid on
     
     clearvars xWal yWal xData yData
     
@@ -221,131 +259,74 @@ lso=sqrt(hbar./(4.*e.*bso));
 lphi=sqrt(hbar./(4.*e.*bi));
 ltr=(hbar/e*sqrt(2*pi)).*mu;
 tauso=hbar./(4*e.*bso.*dif);
-"WAL fitting finished"
+fprintf("WAL fitting finished.\n")
 
 %% Change the units
 dif=dif.*10000;
 mu=mu.*10000;
 
-%% Ne vs temperature
-figure
-scatter(temperatureForNum(1:number/2),ne,'o');
-xlim([0 1.1*max(temperatureForNum)])
-% upLim=max(ne)+0.1*(max(ne)-min(ne));
-% downLim=min(ne)-0.1*(max(ne)-min(ne));
-% ylim([downLim upLim])
-% clearvars upLim downLim
-
+%% ne vs temperature
+getScatter(temperatureForNum(1:number/2),ne,generalView,"n_e vs Temperature")
 xlabel {T (K)}
 ylabel {n_e (cm^{-3})}
-grid on
-box on
 
 %% D vs temperature
-figure
-scatter(temperatureForNum(1:number/2),dif,'o');
-xlim([0 1.1*max(temperatureForNum)])
-% ylim([0.999*min(dif) 1.001*max(dif)])
+getScatter(temperatureForNum(1:number/2),dif,generalView,"D vs Temperature")
 xlabel {T (K)}
 ylabel {D (cm^2/s)}
-grid on
-box on
 
 %% L_SO vs temperature
-figure
-scatter(temperatureForNum(1:number/2),lso,'o');
-xlim([0 1.1*max(temperatureForNum)])
-% ylim([0.999*min(dif) 1.001*max(dif)])
+getScatter(temperatureForNum(1:number/2),lso,generalView,"L_{SO} vs Temperature");
 xlabel {T (K)}
 ylabel {L_{SO} (m)}
-grid on
-box on
 
 %% L_Phi vs temperature
-figure
-scatter(temperatureForNum(1:number/2),lphi,'o');
-xlim([0 1.1*max(temperatureForNum)])
-% ylim([0.999*min(dif) 1.001*max(dif)])
+getScatter(temperatureForNum(1:number/2),lphi,generalView,"L_{\phi} vs Temperature");
 xlabel {T (K)}
 ylabel {L(\phi) (m)}
-grid on
-box on
 
 %% L_SO vs D
-figure
-scatter(dif,lso,'o');
-% xlim([0 1.1*max(temperatureForNum)])
-% ylim([0.999*min(dif) 1.001*max(dif)])
+getScatter(dif,lso,generalView,"L_{SO} vs D");
 xlabel {D (m^2/s)}
 ylabel {L(\phi) (m)}
-grid on
-box on
 
 %% Tau_SO vs Tau_p
-figure
-scatter(taup,tauso,'o');
+getScatter(taup,tauso,generalView,"\tau_{SO} vs \tau_p");
 xlabel {\tau_p (s)}
 ylabel {\tau_{SO} (s)}
-grid on
-box on
 
 %% Tau_SO vs D
-figure
-scatter(dif,tauso,'o');
+getScatter(dif,tauso,generalView,"\tau_{SO} vs D");
 xlabel {D (cm^2/s)}
 ylabel {\tau_{SO} (s)}
-grid on
-box on
 
 %% mu vs temperature
-figure
-scatter(temperatureForNum(1:number/2),mu,'o');
-xlim([0 1.1*max(temperatureForNum)])
+getScatter(temperatureForNum(1:number/2),mu,generalView,"\mu vs Temperature");
 xlabel {T (K)}
 ylabel {\mu (cm^2/V/s)}
-grid on
-box on
 
 %% Tau_SO vs temperature
-figure
-scatter(temperatureForNum(1:number/2),tauso,'o');
-xlim([0 1.1*max(temperatureForNum)])
-% ylim([0.999*min(dif) 1.001*max(dif)])
+getScatter(temperatureForNum(1:number/2),tauso,generalView,"\tau_{SO} vs Temperature");
 xlabel {T (K)}
 ylabel {\tau_{SO} (s)}
-grid on
-box on
 
 %% Tau_p vs temperature
-figure
-scatter(temperatureForNum(1:number/2),taup,'o');
-xlim([0 1.1*max(temperatureForNum)])
-% ylim([0.999*min(dif) 1.001*max(dif)])
+getScatter(temperatureForNum(1:number/2),taup,generalView,"\tau_p vs Temperature");
 xlabel {T (K)}
 ylabel {\tau_p (s)}
-grid on
-box on
 
 %% vf vs temperature
-figure
-scatter(temperatureForNum(1:number/2),vf,'o');
-xlim([0 1.1*max(temperatureForNum)])
+getScatter(temperatureForNum(1:number/2),vf,generalView,"v_f vs Temperature");
 xlabel {T (K)}
 ylabel {v_f }
-grid on
-box on
 
 %% Bso vs temperature
-figure
-scatter(temperatureForNum(1:number/2),bso,'o');
-xlim([0 1.1*max(temperatureForNum)])
+getScatter(temperatureForNum(1:number/2),bso,generalView,"B_{SO} vs Temperature");
 xlabel {T (K)}
 ylabel {B_{SO} (T)}
-grid on
-box on
 
 
-"Finished"
+fprintf("Finished\n")
 
 
 
@@ -385,3 +366,85 @@ x(end) = [];
 y(end) = [];
 
 end
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function getScatter(x,y,generalView,titleOfPlot)
+
+if nargin < 3
+    generalView=true
+end
+
+fig=figure;
+
+if generalView==false
+    set(fig,'Visible','off')
+end
+
+plot(x,y,'o','LineWidth',2.5)
+set(gcf,'position',[1800 100 800 600]);
+xlim([1.1*min(x)-0.1*max(x) 1.1*max(x)-0.1*min(x)]);
+ylim([1.1*min(y)-0.1*max(y) 1.1*max(y)-0.1*min(y)]);
+set(gca, 'linewidth', 1.1,'fontname', 'Helvetica', 'FontSize',18)
+if nargin == 4
+    set(fig,'Name',titleOfPlot);
+    title(titleOfPlot);
+end
+grid on
+end
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function getFitPlot(fitresult,xData,yData,fittingView,titleOfPlot)
+
+if nargin < 4
+    fittingView=true
+end
+
+fig=figure;
+set(gcf,'position',[1800 100 800 600]);
+
+if fittingView==false
+    set(fig,'Visible','off')
+end
+
+dataPoint=plot(xData, yData ,'o');
+hold on
+fittingCurve=plot(fitresult,'r:');
+fittingCurve.LineWidth=4;
+%,'LineStyle',':', 'LineWidth',2
+legend({"Data Point","Fitting Curve"});
+set(gca, 'linewidth', 1.1,'fontname', 'Helvetica', 'FontSize',18)
+
+if nargin == 5
+    set(fig,'Name',titleOfPlot);
+    title(titleOfPlot);
+end
+
+grid on
+end
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function getPlot(x,y,generalView,titleOfPlot)
+
+if nargin < 3
+    generalView=true
+end
+
+if generalView==false
+    set(fig,'Visible','off')
+end
+
+plot(x,y,'Linewidth',2);
+set(gcf,'position',[1800 100 800 600]);
+set(gca, 'linewidth', 1.1,'fontname', 'Helvetica', 'FontSize',18)
+
+if nargin == 4
+    set(gcf,'Name',titleOfPlot);
+    title(titleOfPlot);
+end
+
+grid on
+end
+
