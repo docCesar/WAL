@@ -19,11 +19,6 @@ fittingView=input('Do you want to check the status of fitting curve ?\nPlease en
 fittingView=logical(fittingView)
 generalView=true;
 
-% if fittingView ~= (1 | 0)
-%     fprintf("Wrong value of view setting. \nYou should enter 1 or 0.\n")
-%     return
-% end
-
 %% Import data name
 fileName=dir(fullfile('*.txt'));
 %fileName= dir(fullfile('d:/datafile','*.txt'));             
@@ -283,12 +278,12 @@ ylabel {L_{SO} (m)}
 %% L_Phi vs temperature
 getScatter(temperatureForNum(1:number/2),lphi,generalView,"L_{\phi} vs Temperature");
 xlabel {T (K)}
-ylabel {L(\phi) (m)}
+ylabel {L_\phi (m)}
 
 %% L_SO vs D
 getScatter(dif,lso,generalView,"L_{SO} vs D");
 xlabel {D (m^2/s)}
-ylabel {L(\phi) (m)}
+ylabel {L_{SO} (m)}
 
 %% Tau_SO vs Tau_p
 getScatter(taup,tauso,generalView,"\tau_{SO} vs \tau_p");
@@ -437,7 +432,7 @@ if generalView==false
 end
 
 plot(x,y,'Linewidth',2);
-set(gcf,'position',[1800 100 800 600]);
+set(gcf,'position',[1000 100 800 600]);
 set(gca, 'linewidth', 1.1,'fontname', 'Helvetica', 'FontSize',18)
 
 if nargin == 4
@@ -447,4 +442,4 @@ end
 
 grid on
 end
-
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
