@@ -46,9 +46,7 @@ temperatureForNum=[];
 temperatureForTag=string;
 
 %% Import data
-% Thickness need to be added.
 for i=1:number
-    % Here we can add an if to separate 2 types of measurements.
     % Extract the thickness and magnetic field.
     patternDirection = '(?<=Rx)\w(?=_)';
     patternTemperature = '(?<=Rx(x|y)_)\d*(?=K_)';
@@ -321,7 +319,7 @@ xlabel {T (K)}
 ylabel {B_{SO} (T)}
 
 
-fprintf("Finished\n")
+fprintf("Program completed.\n")
 
 
 
