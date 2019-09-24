@@ -1,5 +1,10 @@
 clear;close all;clc
 
+status=rmdir('temPlots','s');
+status=rmdir('temFitPlots','s');
+mkdir temPlots;
+mkdir temFitPlots;
+
 % Constants
 h=6.6260699*10^-34;
 hbar=1.0545718e-34;
@@ -15,8 +20,8 @@ asp=24;         % Large devices of new mask
 thick=input('Please enter the thickness of samples in nanometers\n')
 % thick=thick*10^-9; % Nanometer
 fittingView=false;
-fittingView=input('Do you want to check the status of fitting curve ?\nPlease enter 1 for YES or 0 for NO.\n')
-fittingView=logical(fittingView)
+fittingView=input('Do you want to check the status of fitting curve ?\nPlease enter 1 for YES or 0 for NO.\n');
+fittingView=logical(fittingView);
 generalView=true;
 
 %% Import data name
@@ -46,6 +51,7 @@ temperatureForNum=[];
 temperatureForTag=string;
 
 %% Import data
+% Format of dataRaw: {Temperature, hxx, rxx, gxx, hxy, rxy, rxyCali}
 for i=1:number
     % Extract the thickness and magnetic field.
     patternDirection = '(?<=Rx)\w(?=_)';
@@ -123,6 +129,9 @@ end
 title('Hall resistance')
 legend(temperatureForTag(1:number/2))
 
+path=strcat("temPlots\","Hall resistance");
+saveas(gcf,path,'meta');
+saveas(gcf,path,'jpeg');
 
 %% Hall fitting
 for i=1:number/2
@@ -185,6 +194,29 @@ end
 title('Longitude resistance')
 legend(temperatureForTag(1:number/2),'Location','northeastoutside')
 
+path=strcat("temPlots\","Longitude resistance");
+saveas(gcf,path,'meta');
+saveas(gcf,path,'jpeg');
+
+%% Gxx vs B
+% Format of dataRaw: {Temperature, hxx, rxx, gxx, hxy, rxy, rxyCali}
+figure
+for i=1:number/2
+    dg=dataRaw{i,4}-max(dataRaw{i,4});
+    getPlot(dataRaw{i,2},dg,generalView,"G_{xx} vs H")
+    xlabel {H (T)}
+    ylabel {\DeltaG_{xx} (e^2/h)}
+    hold on
+    
+end
+title('Longitude resistance')
+legend(temperatureForTag(1:number/2),'Location','northeastoutside')
+clearvars dg
+
+path=strcat("temPlots\","Longitude conductance");
+saveas(gcf,path,'meta');
+saveas(gcf,path,'jpeg');
+
 %% Gxx(Normalized) vs B
 % Format of dataRaw: {Temperature, hxx, rxx, gxx, hxy, rxy, rxyCali}
 figure('Name',"Gxx(Normalized) vs B")
@@ -200,8 +232,12 @@ for i=1:number/2
     hold on
     clearvars temY
 end
-title('Longitude resistance(Normalized)')
+title('Longitude conductivity (Normalized)')
 legend(temperatureForTag(1:number/2),'Location','northeastoutside')
+
+path=strcat("temPlots\","Longitude conductance (Normalized)");
+saveas(gcf,path,'meta');
+saveas(gcf,path,'jpeg');
 
 %% WAL fitting
 % Format of dataRaw: {Temperature, hxx, rxx, gxx, hxy, rxy, rxyCali}
@@ -250,13 +286,18 @@ end
 
 lso=sqrt(hbar./(4.*e.*bso));
 lphi=sqrt(hbar./(4.*e.*bi));
-ltr=(hbar/e*sqrt(2*pi)).*mu;
+ltr=sqrt(hbar./(4.*e.*be));
 tauso=hbar./(4*e.*bso.*dif);
+tauphi=hbar./(4*e.*bi.*dif);
+
 fprintf("WAL fitting finished.\n")
 
 %% Change the units
 dif=dif.*10000;
 mu=mu.*10000;
+tauso = tauso.*10^15;        % Femtosecond
+tauphi = tauphi.*10^15;      % Femtosecond
+taup = taup.*10^15;          % Femtosecond
 
 %% ne vs temperature
 getScatter(temperatureForNum(1:number/2),ne,generalView,"n_e vs Temperature")
@@ -285,13 +326,13 @@ ylabel {L_{SO} (m)}
 
 %% Tau_SO vs Tau_p
 getScatter(taup,tauso,generalView,"\tau_{SO} vs \tau_p");
-xlabel {\tau_p (s)}
-ylabel {\tau_{SO} (s)}
+xlabel {\tau_p (fs)}
+ylabel {\tau_{SO} (fs)}
 
 %% Tau_SO vs D
 getScatter(dif,tauso,generalView,"\tau_{SO} vs D");
 xlabel {D (cm^2/s)}
-ylabel {\tau_{SO} (s)}
+ylabel {\tau_{SO} (fs)}
 
 %% mu vs temperature
 getScatter(temperatureForNum(1:number/2),mu,generalView,"\mu vs Temperature");
@@ -301,12 +342,17 @@ ylabel {\mu (cm^2/V/s)}
 %% Tau_SO vs temperature
 getScatter(temperatureForNum(1:number/2),tauso,generalView,"\tau_{SO} vs Temperature");
 xlabel {T (K)}
-ylabel {\tau_{SO} (s)}
+ylabel {\tau_{SO} (fs)}
+
+%% Tau_phi vs thickness
+getScatter(temperatureForNum(1:number/2),tauphi,generalView,"\tau_{\phi} vs Temperature");
+xlabel {T (K)}
+ylabel {\tau_{\phi} (fs)}
 
 %% Tau_p vs temperature
 getScatter(temperatureForNum(1:number/2),taup,generalView,"\tau_p vs Temperature");
 xlabel {T (K)}
-ylabel {\tau_p (s)}
+ylabel {\tau_p (fs)}
 
 %% vf vs temperature
 getScatter(temperatureForNum(1:number/2),vf,generalView,"v_f vs Temperature");
@@ -375,7 +421,7 @@ if generalView==false
 end
 
 plot(x,y,'o','LineWidth',2.5)
-set(gcf,'position',[1800 100 800 600]);
+set(gcf,'position',[800 100 800 600]);
 xlim([1.1*min(x)-0.1*max(x) 1.1*max(x)-0.1*min(x)]);
 ylim([1.1*min(y)-0.1*max(y) 1.1*max(y)-0.1*min(y)]);
 set(gca, 'linewidth', 1.1,'fontname', 'Helvetica', 'FontSize',18)
@@ -384,6 +430,11 @@ if nargin == 4
     title(titleOfPlot);
 end
 grid on
+
+titleOfPlot=strrep(titleOfPlot,'\','');
+path=strcat("temPlots\",titleOfPlot);
+saveas(fig,path,'meta');
+saveas(fig,path,'jpeg');
 end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -395,7 +446,7 @@ if nargin < 4
 end
 
 fig=figure;
-set(gcf,'position',[1800 100 800 600]);
+set(gcf,'position',[800 100 800 600]);
 
 if fittingView==false
     set(fig,'Visible','off')
@@ -415,6 +466,11 @@ if nargin == 5
 end
 
 grid on
+
+titleOfPlot=strrep(titleOfPlot,'\','');
+path=strcat("temFitPlots\",titleOfPlot);
+saveas(fig,path,'meta');
+saveas(fig,path,'jpeg');
 end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
