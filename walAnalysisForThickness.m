@@ -85,7 +85,7 @@ for i=1:number
     elseif isReadThi==1
         j=find([dataRaw{:,1}]==thicknessForNum(i));
     else
-        "Wrong 1"
+        error('ERROR 01');
         return
     end
     
@@ -111,7 +111,7 @@ for i=1:number
         temR=flipud(temR);
         dataRaw{j,7}=(dataRaw{j,6}-temR)./2;
     else
-        "Something wrong with file name. Wrong 2"
+        error('ERROR 02:Something wrong with file name.' );
         return
     end
     
@@ -131,7 +131,7 @@ thicknessForCheck=convertStringsToChars(thicknessForCheck);
 for i=1:number/2
     for j=2:7
         if isempty(dataRaw{i,j})==1
-          "Wrong 3"
+          error('ERROR 03');
           return
         end
     end
@@ -188,9 +188,9 @@ for i=1:number/2
     if dimension == 2
         kf(i)=(2*pi*ne(i))^(1/2);
     elseif dimension == 3
-        kf(i)=(3*pi^2*ne)^(1/3);
+        kf(i)=(3*pi^2*ne)^(1/3);    % Here ne should be in bulk
     else
-        "Wrong 4"
+        error('ERROR 04');
         return
     end
     
@@ -273,15 +273,15 @@ for i=1:number/2
     % Set up fittype and options.
     ft = fittype( '1/3.14159*(-psi((bso+be)/abs(x)+0.5)+log((bso+be)/abs(x))+1.5*psi((bi+4*bso/3)/abs(x)+0.5)-1.5*log((bi+4*bso/3)/abs(x))-0.5*psi(bi/abs(x)+0.5)+0.5*log(bi/abs(x)))+kFactor*x^2+kkFactor*x', 'independent', 'x', 'dependent', 'y' , 'problem' , 'be' );
     opts = fitoptions( 'Method', 'NonlinearLeastSquares' );
-    opts.DiffMinChange = 1e-12;
+    opts.DiffMinChange = 1e-14;
     opts.Display = 'Off'; 
-    opts.Lower = [0 0];
-    opts.MaxFunEvals = 3000;
-    opts.MaxIter = 2000;
+    opts.Lower = [0 0 -Inf -Inf];
+    opts.MaxFunEvals = 5000;
+    opts.MaxIter = 5000;
     opts.Robust = 'LAR';
-    opts.StartPoint = [0.02 -0.05 0 -0.001];
-    opts.TolFun = 1e-08;
-    opts.TolX = 1e-08;
+    opts.StartPoint = [0.002 10 -0.00001 -0.00001];
+    opts.TolFun = 1e-09;
+    opts.TolX = 1e-09;
     
     % Fit model to data.
     [fitresult, gof] = fit( xData, yData, ft, opts , 'problem' , be(i));
@@ -292,16 +292,23 @@ for i=1:number/2
     bi(end+1)=fitresult.bi;
     
     % Plot fit with data.
-    getFitPlot(fitresult,xData,yData,fittingView,strcat("WAL fitting result of ",thicknessForTag(i)),temperatureForTag(i),100);
+    getFitPlot(fitresult,xData,yData,fittingView,strcat("WAL fitting result of ",thicknessForTag(i)),temperatureForTag(i),256);
 %     figure( 'Name', strcat("WAL fitting for ",temperatureForTag(i)) );
 %     plot( fitresult, xData, yData ,'o');
 %     legend( 'Data points', 'Fitting curve', 'Location', 'NorthEast' );
 %     title(strcat("WAL fitting for ",temperatureForTag(i)))
     % Label axes
-    xlabel {|H_{ex}| (T)}
-    ylabel \DeltaG
+    xlabel {H_{ex} (T)}
+    ylabel {\DeltaG (e^2/h)}
 %     grid on
-    hold on
+%     hold on
+    
+    %%%%%%%%%%%%%%%%%%%%
+%     if i==1
+%         return
+%     end
+%     
+    
     clearvars xWal yWal xData yData
     
 end
@@ -311,6 +318,7 @@ lphi=sqrt(hbar./(4.*e.*bi));
 ltr=sqrt(hbar./(4.*e.*be));
 tauso=hbar./(4*e.*bso.*dif);
 tauphi=hbar./(4*e.*bi.*dif);
+gCritical=kf.*ltr;           % g¡Ô¦Ò/(e2/h)=kf*ltr=1  dimensionless conductivity,g>1 for conductor.
 
 fprintf("WAL fitting finished.\n")
 
@@ -321,71 +329,88 @@ tauso = tauso.*10^15;        % Femtosecond
 tauphi = tauphi.*10^15;      % Femtosecond
 taup = taup.*10^15;          % Femtosecond
 
+lphi = lphi.*10^9;           % Nanometer
+lso = lso.*10^9;           % Nanometer
+ltr = ltr.*10^9;           % Nanometer
+
 i=1;    % Set for tag of temperature
+
+%% Hall factors vs thickness
+getScatter(thicknessForNum(1:number/2),hall,generalView,"Hall factors vs Thickness",temperatureForTag(i),{"Thickness (nm)","H_e (m^2/C)"});
+
 %% ne vs thickness
-getScatter(thicknessForNum(1:number/2),ne,generalView,"n_e vs Thickness",temperatureForTag(i))
-xlabel {Thickness (nm)}
-ylabel {n_e (cm^{-3})}
+getScatter(thicknessForNum(1:number/2),ne,generalView,"n_e vs Thickness",temperatureForTag(i),{"Thickness (nm)","n_e (cm^{-2})"})
+% xlabel {Thickness (nm)}
+% ylabel {n_e (cm^{-2})}
 
 %% D vs thickness
-getScatter(thicknessForNum(1:number/2),dif,generalView,"D vs thickness",temperatureForTag(i))
-xlabel {Thickness (nm)}
-ylabel {D (cm^2/s)}
+getScatter(thicknessForNum(1:number/2),dif,generalView,"D vs thickness",temperatureForTag(i),{"Thickness (nm)","D (cm^2/s)"})
+% xlabel {Thickness (nm)}
+% ylabel {D (cm^2/s)}
 
 %% L_SO vs thickness
-getScatter(thicknessForNum(1:number/2),lso,generalView,"L_{SO} vs thickness",temperatureForTag(i));
-xlabel {Thickness (nm)}
-ylabel {L_{SO} (m)}
+getScatter(thicknessForNum(1:number/2),lso,generalView,"L_{SO} vs thickness",temperatureForTag(i),{"Thickness (nm)","L_{SO} (nm)"});
+% xlabel {Thickness (nm)}
+% ylabel {L_{SO} (m)}
 
 %% L_Phi vs thickness
-getScatter(thicknessForNum(1:number/2),lphi,generalView,"L_{\phi} vs thickness",temperatureForTag(i));
-xlabel {Thickness (nm)}
-ylabel {L_\phi (m)}
+getScatter(thicknessForNum(1:number/2),lphi,generalView,"L_{\phi} vs thickness",temperatureForTag(i),{"Thickness (nm)","L_\phi (nm)"});
+% xlabel {Thickness (nm)}
+% ylabel {L_\phi (m)}
 
 %% L_SO vs D
-getScatter(dif,lso,generalView,"L_{SO} vs D",temperatureForTag(i));
-xlabel {D (m^2/s)}
-ylabel {L_{SO} (m)}
+getScatter(dif,lso,generalView,"L_{SO} vs D",temperatureForTag(i),{"D (m^2/s)","L_{SO} (nm)"});
+% xlabel {D (m^2/s)}
+% ylabel {L_{SO} (m)}
 
 %% Tau_SO vs Tau_p
-getScatter(taup,tauso,generalView,"\tau_{SO} vs \tau_p",temperatureForTag(i));
-xlabel {\tau_p (fs)}
-ylabel {\tau_{SO} (fs)}
+getScatter(taup,tauso,generalView,"\tau_{SO} vs \tau_p",temperatureForTag(i),{"\tau_p (fs)","\tau_{SO} (fs)"});
+% xlabel {\tau_p (fs)}
+% ylabel {\tau_{SO} (fs)}
 
 %% Tau_SO vs D
-getScatter(dif,tauso,generalView,"\tau_{SO} vs D",temperatureForTag(i));
-xlabel {D (cm^2/s)}
-ylabel {\tau_{SO} (fs)}
+getScatter(dif,tauso,generalView,"\tau_{SO} vs D",temperatureForTag(i),{"D (cm^2/s)","\tau_{SO} (fs)"});
+% xlabel {D (cm^2/s)}
+% ylabel {\tau_{SO} (fs)}
 
 %% mu vs thickness
-getScatter(thicknessForNum(1:number/2),mu,generalView,"\mu vs thickness",temperatureForTag(i));
-xlabel {Thickness (nm)}
-ylabel {\mu (cm^2/V/s)}
+getScatter(thicknessForNum(1:number/2),mu,generalView,"\mu vs thickness",temperatureForTag(i),{"Thickness (nm)","\mu (cm^2/V/s)"});
+% xlabel {Thickness (nm)}
+% ylabel {\mu (cm^2/V/s)}
 
 %% Tau_SO vs thickness
-getScatter(thicknessForNum(1:number/2),tauso,generalView,"\tau_{SO} vs thickness",temperatureForTag(i));
-xlabel {Thickness (nm)}
-ylabel {\tau_{SO} (fs)}
+getScatter(thicknessForNum(1:number/2),tauso,generalView,"\tau_{SO} vs thickness",temperatureForTag(i),{"Thickness (nm)","\tau_{SO} (fs)"});
+% xlabel {Thickness (nm)}
+% ylabel {\tau_{SO} (fs)}
 
 %% Tau_phi vs thickness
-getScatter(thicknessForNum(1:number/2),tauphi,generalView,"\tau_{\phi} vs thickness",temperatureForTag(i));
-xlabel {Thickness (nm)}
-ylabel {\tau_{\phi} (fs)}
+getScatter(thicknessForNum(1:number/2),tauphi,generalView,"\tau_{\phi} vs thickness",temperatureForTag(i),{"Thickness (nm)","\tau_{\phi} (fs)"});
+% xlabel {Thickness (nm)}
+% ylabel {\tau_{\phi} (fs)}
 
 %% Tau_p vs thickness
-getScatter(thicknessForNum(1:number/2),taup,generalView,"\tau_p vs thickness",temperatureForTag(i));
-xlabel {Thickness (nm)}
-ylabel {\tau_p (fs)}
+getScatter(thicknessForNum(1:number/2),taup,generalView,"\tau_p vs thickness",temperatureForTag(i),{"Thickness (nm)","\tau_p (fs)"});
+% xlabel {Thickness (nm)}
+% ylabel {\tau_p (fs)}
 
 %% vf vs thickness
-getScatter(thicknessForNum(1:number/2),vf,generalView,"v_f vs thickness",temperatureForTag(i));
-xlabel {Thickness (nm)}
-ylabel {v_f }
+getScatter(thicknessForNum(1:number/2),vf,generalView,"v_f vs thickness",temperatureForTag(i),{"Thickness (nm)","v_f "});
+% xlabel {Thickness (nm)}
+% ylabel {v_f }
+
+%% gCritical vs thickness
+getScatter(thicknessForNum(1:number/2),gCritical,generalView,"g_{Cri} vs thickness",temperatureForTag(i),{"Thickness (nm)","g_{Cri} (a.u.)"});
+% xlabel {Thickness (nm)}
+% ylabel {v_f }
 
 %% Bso vs thickness
-getScatter(thicknessForNum(1:number/2),bso,generalView,"B_{SO} vs thickness",temperatureForTag(i));
-xlabel {Thickness (nm)}
-ylabel {B_{SO} (T)}
+getScatter(thicknessForNum(1:number/2),bso,generalView,"B_{SO} vs thickness",temperatureForTag(i),{"Thickness (nm)","B_{SO} (T)"});
+% xlabel {Thickness (nm)}
+% ylabel {B_{SO} (T)}
+
+%% Bi vs thickness
+getScatter(thicknessForNum(1:number/2),bi,generalView,"B_i vs thickness",temperatureForTag(i),{"Thickness (nm)","B_i (T)"});
+
 
 
 
@@ -430,7 +455,7 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function getScatter(x,y,generalView,titleOfPlot,temperature)
+function getScatter(x,y,generalView,titleOfPlot,temperature,label)
 
 if nargin < 3
     generalView=true;
@@ -442,21 +467,29 @@ if generalView==false
     set(fig,'Visible','off')
 end
 
-plot(x,y,'o','LineWidth',2.5)
+plot(x,y,'o-','LineWidth',2.5)
 set(gcf,'position',[800 100 800 600]);
 xlim([1.1*min(x)-0.1*max(x) 1.1*max(x)-0.1*min(x)]);
 ylim([1.1*min(y)-0.1*max(y) 1.1*max(y)-0.1*min(y)]);
 set(gca, 'linewidth', 1.1,'fontname', 'Helvetica', 'FontSize',18)
-if nargin == 4
+
+if nargin >= 4
     set(fig,'Name',titleOfPlot);
     title(titleOfPlot);
 end
-if nargin == 5
+
+if nargin >= 5
     set(fig,'Name',titleOfPlot);
     title(titleOfPlot);
     str=strcat("T=",temperature);
     text(0.95,0.05,str,'Color','blue','FontSize',24,'Units','normalized','HorizontalAlignment','right')
 end
+
+if nargin >= 6
+    xlabel(label{1})
+    ylabel(label{2})
+end
+
 grid on
 
 titleOfPlot=strrep(titleOfPlot,'\','');
@@ -472,7 +505,7 @@ function getFitPlot(fitresult,xData,yData,fittingView,titleOfPlot,temperature,n)
 if nargin < 4
     fittingView = true;
 end
-if n==100
+if n==256
 fig=figure(n);
 else
     fig=figure
@@ -490,20 +523,26 @@ fittingCurve.LineWidth=4;
 legend({"Data Point","Fitting Curve"});
 set(gca, 'linewidth', 1.1,'fontname', 'Helvetica', 'FontSize',18)
 
-if nargin == 5
+if nargin >= 5
     set(fig,'Name',titleOfPlot);
     title(titleOfPlot);
 end
 
-if nargin == 6
-    set(fig,'Name',titleOfPlot);
-    title(titleOfPlot);
-    str=strcat("T=",temperature);
-    text(0.95,0.05,str,'Color','blue','FontSize',24,'Units','normalized','HorizontalAlignment','right')
+if nargin >= 6
+    if n == 256
+        set(fig,'Name',"WAL fitting result");
+        title("WAL fitting result");
+        hold on
+    else
+        set(fig,'Name',titleOfPlot);
+        title(titleOfPlot);
+        str=strcat("T=",temperature);
+        text(0.95,0.05,str,'Color','blue','FontSize',24,'Units','normalized','HorizontalAlignment','right')
+    end
 end
 
 grid on
-hold on
+% hold on
 titleOfPlot=strrep(titleOfPlot,'\','');
 path=strcat("temFitPlots\",titleOfPlot);
 saveas(fig,path,'meta');

@@ -44,6 +44,9 @@ ne=[];
 kf=[];
 bi=[];
 bso=[];
+kFactor=[];
+kkFactor=[];
+
 directionForTag=string;
 temperatureForCheck=string;
 temperatureForNum=[];
@@ -70,7 +73,7 @@ for i=1:number
     elseif isReadTem==1
         j=find([dataRaw{:,1}]==temperatureForNum(i));
     else
-        "Wrong 1"
+        error('ERROR 01');
         return
     end
     
@@ -96,7 +99,7 @@ for i=1:number
         temR=flipud(temR);
         dataRaw{j,7}=(dataRaw{j,6}-temR)./2;
     else
-        "Something wrong with file name. Wrong 2"
+        error('ERROR 02: Something wrong with file name.');
         return
     end
     
@@ -111,7 +114,7 @@ temperatureForCheck=convertStringsToChars(temperatureForCheck);
 for i=1:number/2
     for j=2:7
         if isempty(dataRaw{i,j})==1
-          "Wrong 3"
+          error('ERROR 03');
           return
         end
     end
@@ -169,7 +172,7 @@ for i=1:number/2
     elseif dimension == 3
         kf(i)=(3*pi^2*ne)^(1/3);
     else
-        "Wrong 4"
+        error('ERROR 04');
         return
     end
     
@@ -209,7 +212,7 @@ for i=1:number/2
     hold on
     
 end
-title('Longitude resistance')
+title('Longitude conductance')
 legend(temperatureForTag(1:number/2),'Location','northeastoutside')
 clearvars dg
 
@@ -244,40 +247,44 @@ saveas(gcf,path,'jpeg');
 
 
 for i=1:number/2
+    %%
     % Pretreatment of data.
     % Get the abstract of hxx.
-    xWal = abs(dataRaw{i,2});
+    xWal = dataRaw{i,2};
     yWal = dataRaw{i,4}-max(dataRaw{i,4});
     [xData, yData] = prepareCurveData( xWal, yWal );  
     
     % Set up fittype and options.
-    ft = fittype( '1/3.14159*(-psi((bso+be)/x+0.5)+log((bso+be)/x)+1.5*psi((bi+4*bso/3)/x+0.5)-1.5*log((bi+4*bso/3)/x)-0.5*psi(bi/x+0.5)+0.5*log(bi/x))+kFactor*x^2', 'independent', 'x', 'dependent', 'y' , 'problem' , 'be' );
+    ft = fittype( '1/3.14159*(-psi((bso+be)/abs(x)+0.5)+log((bso+be)/abs(x))+1.5*psi((bi+4*bso/3)/abs(x)+0.5)-1.5*log((bi+4*bso/3)/abs(x))-0.5*psi(bi/abs(x)+0.5)+0.5*log(bi/abs(x)))+kFactor*x^2+kkFactor*x', 'independent', 'x', 'dependent', 'y' , 'problem' , 'be' );
     opts = fitoptions( 'Method', 'NonlinearLeastSquares' );
     opts.DiffMinChange = 1e-12;
     opts.Display = 'Off'; 
-    opts.Lower = [0 0];
-    opts.MaxFunEvals = 3000;
-    opts.MaxIter = 2000;
+    opts.Lower = [0 0 -Inf -Inf];
+    opts.Upper = [2 80 Inf Inf];
+    opts.MaxFunEvals = 50000;
+    opts.MaxIter = 40000;
     opts.Robust = 'LAR';
-    opts.StartPoint = [0.02 -0.05 0];
-    opts.TolFun = 1e-08;
-    opts.TolX = 1e-08;
+    opts.StartPoint = [0.002 1 -0.00001 -0.00001];
+    opts.TolFun = 1e-09;
+    opts.TolX = 1e-09;
     
     % Fit model to data.
     [fitresult, gof] = fit( xData, yData, ft, opts , 'problem' , be(i));
     
+    kFactor(end+1)=fitresult.kFactor;
+    kkFactor(end+1)=fitresult.kkFactor;
     bso(end+1)=fitresult.bso;
     bi(end+1)=fitresult.bi;
     
     % Plot fit with data.
-    getFitPlot(fitresult,xData,yData,fittingView,strcat("WAL fitting result of ",temperatureForTag(i)));
+    getFitPlot(fitresult,xData,yData,fittingView,strcat("WAL fitting result of ",temperatureForTag(i)),256);
 %     figure( 'Name', strcat("WAL fitting for ",temperatureForTag(i)) );
 %     plot( fitresult, xData, yData ,'o');
 %     legend( 'Data points', 'Fitting curve', 'Location', 'NorthEast' );
 %     title(strcat("WAL fitting for ",temperatureForTag(i)))
     % Label axes
-    xlabel {|H_{ex}| (T)}
-    ylabel \DeltaG
+    xlabel {H_{ex} (T)}
+    ylabel {\DeltaG (e^2/h)}
 %     grid on
     
     clearvars xWal yWal xData yData
@@ -289,81 +296,95 @@ lphi=sqrt(hbar./(4.*e.*bi));
 ltr=sqrt(hbar./(4.*e.*be));
 tauso=hbar./(4*e.*bso.*dif);
 tauphi=hbar./(4*e.*bi.*dif);
+gCritical=kf.*ltr;           % g¡Ô¦Ò/(e2/h)=kf*ltr=1  dimensionless conductivity,g>1 for conductor.
 
 fprintf("WAL fitting finished.\n")
 
 %% Change the units
-dif=dif.*10000;
-mu=mu.*10000;
+dif = dif.*10000;
+mu = mu.*10000;
 tauso = tauso.*10^15;        % Femtosecond
 tauphi = tauphi.*10^15;      % Femtosecond
 taup = taup.*10^15;          % Femtosecond
 
+lphi = lphi.*10^9;           % Nanometer
+lso = lso.*10^9;           % Nanometer
+ltr = ltr.*10^9;           % Nanometer
+
 %% ne vs temperature
-getScatter(temperatureForNum(1:number/2),ne,generalView,"n_e vs Temperature")
-xlabel {T (K)}
-ylabel {n_e (cm^{-3})}
+getScatter(temperatureForNum(1:number/2),ne,generalView,"n_e vs Temperature",{"Temperature (K)","n_e (cm^{-2})"})
+% xlabel {T (K)}
+% ylabel {n_e (cm^{-2})}
 
 %% D vs temperature
-getScatter(temperatureForNum(1:number/2),dif,generalView,"D vs Temperature")
-xlabel {T (K)}
-ylabel {D (cm^2/s)}
+getScatter(temperatureForNum(1:number/2),dif,generalView,"D vs Temperature",{"Temperature (K)","D (cm^2/s)"})
+% xlabel {T (K)}
+% ylabel {D (cm^2/s)}
 
 %% L_SO vs temperature
-getScatter(temperatureForNum(1:number/2),lso,generalView,"L_{SO} vs Temperature");
-xlabel {T (K)}
-ylabel {L_{SO} (m)}
+getScatter(temperatureForNum(1:number/2),lso,generalView,"L_{SO} vs Temperature",{"Temperature (K)","L_{SO} (nm)"});
+% xlabel {T (K)}
+% ylabel {L_{SO} (m)}
 
 %% L_Phi vs temperature
-getScatter(temperatureForNum(1:number/2),lphi,generalView,"L_{\phi} vs Temperature");
-xlabel {T (K)}
-ylabel {L_\phi (m)}
+getScatter(temperatureForNum(1:number/2),lphi,generalView,"L_{\phi} vs Temperature",{"Temperature (K)","L_\phi (nm)"});
+% xlabel {T (K)}
+% ylabel {L_\phi (m)}
 
 %% L_SO vs D
-getScatter(dif,lso,generalView,"L_{SO} vs D");
-xlabel {D (m^2/s)}
-ylabel {L_{SO} (m)}
+getScatter(dif,lso,generalView,"L_{SO} vs D",{"D (m^2/s)","L_{SO} (nm)"});
+% xlabel {D (m^2/s)}
+% ylabel {L_{SO} (m)}
 
 %% Tau_SO vs Tau_p
-getScatter(taup,tauso,generalView,"\tau_{SO} vs \tau_p");
-xlabel {\tau_p (fs)}
-ylabel {\tau_{SO} (fs)}
+getScatter(taup,tauso,generalView,"\tau_{SO} vs \tau_p",{"\tau_p (fs)","\tau_{SO} (fs)"});
+% xlabel {\tau_p (fs)}
+% ylabel {\tau_{SO} (fs)}
 
 %% Tau_SO vs D
-getScatter(dif,tauso,generalView,"\tau_{SO} vs D");
-xlabel {D (cm^2/s)}
-ylabel {\tau_{SO} (fs)}
+getScatter(dif,tauso,generalView,"\tau_{SO} vs D",{"D (cm^2/s)","\tau_{SO} (fs)"});
+% xlabel {D (cm^2/s)}
+% ylabel {\tau_{SO} (fs)}
 
 %% mu vs temperature
-getScatter(temperatureForNum(1:number/2),mu,generalView,"\mu vs Temperature");
-xlabel {T (K)}
-ylabel {\mu (cm^2/V/s)}
+getScatter(temperatureForNum(1:number/2),mu,generalView,"\mu vs Temperature",{"Temperature (K)","\mu (cm^2/V/s)"});
+% xlabel {T (K)}
+% ylabel {\mu (cm^2/V/s)}
 
 %% Tau_SO vs temperature
-getScatter(temperatureForNum(1:number/2),tauso,generalView,"\tau_{SO} vs Temperature");
-xlabel {T (K)}
-ylabel {\tau_{SO} (fs)}
+getScatter(temperatureForNum(1:number/2),tauso,generalView,"\tau_{SO} vs Temperature",{"Temperature (K)","\tau_{SO} (fs)"});
+% xlabel {T (K)}
+% ylabel {\tau_{SO} (fs)}
 
 %% Tau_phi vs thickness
-getScatter(temperatureForNum(1:number/2),tauphi,generalView,"\tau_{\phi} vs Temperature");
-xlabel {T (K)}
-ylabel {\tau_{\phi} (fs)}
+getScatter(temperatureForNum(1:number/2),tauphi,generalView,"\tau_{\phi} vs Temperature",{"Temperature (K)","\tau_{\phi} (fs)"});
+% xlabel {T (K)}
+% ylabel {\tau_{\phi} (fs)}
 
 %% Tau_p vs temperature
-getScatter(temperatureForNum(1:number/2),taup,generalView,"\tau_p vs Temperature");
-xlabel {T (K)}
-ylabel {\tau_p (fs)}
+getScatter(temperatureForNum(1:number/2),taup,generalView,"\tau_p vs Temperature",{"Temperature (K)","\tau_p (fs)"});
+% xlabel {T (K)}
+% ylabel {\tau_p (fs)}
 
 %% vf vs temperature
-getScatter(temperatureForNum(1:number/2),vf,generalView,"v_f vs Temperature");
-xlabel {T (K)}
-ylabel {v_f }
+getScatter(temperatureForNum(1:number/2),vf,generalView,"v_f vs Temperature",{"Temperature (K)","v_f "});
+% xlabel {T (K)}
+% ylabel {v_f }
+
+%% gCritical vs temperature
+getScatter(temperatureForNum(1:number/2),gCritical,generalView,"g_{Cri} vs Temperature",{"Temperature (K)","g_{Cri} (a.u.)"});
+% xlabel {T (K)}
+% ylabel {v_f }
 
 %% Bso vs temperature
-getScatter(temperatureForNum(1:number/2),bso,generalView,"B_{SO} vs Temperature");
-xlabel {T (K)}
-ylabel {B_{SO} (T)}
+getScatter(temperatureForNum(1:number/2),bso,generalView,"B_{SO} vs Temperature",{"Temperature (K)","B_{SO} (T)"});
+% xlabel {T (K)}
+% ylabel {B_{SO} (T)}
 
+%% Bi vs temperature
+getScatter(temperatureForNum(1:number/2),bi,generalView,"B_i vs Temperature",{"Temperature (K)","B_i (T)"});
+% xlabel {T (K)}
+% ylabel {B_i (T)}
 
 fprintf("Program completed.\n")
 
@@ -408,7 +429,7 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function getScatter(x,y,generalView,titleOfPlot)
+function getScatter(x,y,generalView,titleOfPlot,label)
 
 if nargin < 3
     generalView=true
@@ -425,12 +446,15 @@ set(gcf,'position',[800 100 800 600]);
 xlim([1.1*min(x)-0.1*max(x) 1.1*max(x)-0.1*min(x)]);
 ylim([1.1*min(y)-0.1*max(y) 1.1*max(y)-0.1*min(y)]);
 set(gca, 'linewidth', 1.1,'fontname', 'Helvetica', 'FontSize',18)
-if nargin == 4
+if nargin >= 4
     set(fig,'Name',titleOfPlot);
     title(titleOfPlot);
 end
 grid on
-
+if nargin >= 5
+    xlabel(label{1})
+    ylabel(label{2})
+end
 titleOfPlot=strrep(titleOfPlot,'\','');
 path=strcat("temPlots\",titleOfPlot);
 saveas(fig,path,'meta');
@@ -439,13 +463,25 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function getFitPlot(fitresult,xData,yData,fittingView,titleOfPlot)
+function getFitPlot(fitresult,xData,yData,fittingView,titleOfPlot,n)
 
 if nargin < 4
     fittingView=true
 end
 
-fig=figure;
+if nargin >= 6
+    if n == 256
+        fig=figure(n);
+        set(fig,'Name',"WAL fitting result");
+        title("WAL fitting result");
+        hold on
+    end
+else
+    fig=figure;
+    set(fig,'Name',titleOfPlot);
+    title(titleOfPlot);
+end
+
 set(gcf,'position',[800 100 800 600]);
 
 if fittingView==false
@@ -460,12 +496,10 @@ fittingCurve.LineWidth=4;
 legend({"Data Point","Fitting Curve"});
 set(gca, 'linewidth', 1.1,'fontname', 'Helvetica', 'FontSize',18)
 
-if nargin == 5
-    set(fig,'Name',titleOfPlot);
-    title(titleOfPlot);
-end
 
 grid on
+box on
+
 
 titleOfPlot=strrep(titleOfPlot,'\','');
 path=strcat("temFitPlots\",titleOfPlot);
