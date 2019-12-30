@@ -53,15 +53,16 @@ for i = 1:number
     clearvars rTem cTem
 end
 
+
 %% Plot resistance
 figR=figure
-plot([rRaw{:,1}],[rRaw{:,4}],'o-','LineWidth',2.5)
+plot([rRaw{:,1}],[rRaw{:,4}]./1000,'o-','LineWidth',2.5)
 set(gcf,'position',[800 100 800 600]);
 set(gca, 'linewidth', 1.1,'fontname', 'Helvetica', 'FontSize',18)
 set(figR,'Name',"Resistance");
 title("Resistance");
 xlabel("T (K)")
-ylabel("Resistance (\Omega)")
+ylabel("Resistance (k\Omega)")
 grid on
 
 %% Plot conductance
