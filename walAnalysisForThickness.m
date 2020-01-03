@@ -102,8 +102,13 @@ for i=1:number
     m=find(~x);
     
     if isempty(m)==0
-        x(m(1)-1:end)=[];
-        y(m(1)-1:end)=[];
+        if x(m(1))==x(m(1)+1)
+            x(m(1)-1:end)=[];
+            y(m(1)-1:end)=[];
+        else
+            x(m(1))=[];
+            y(m(1))=[];
+        end
     end    
     
     x=x./1000;
@@ -210,7 +215,7 @@ end
 % Properties from Hall fitting.
 ne=abs(1./e./hall);
 neBulk=ne./([dataRaw{:,1}].*1e-9);
-mu=(e^2/h).*sigma0./(e*ne(i));
+mu=(e^2/h).*sigma0./(e.*ne);
 taup=me./e.*mu;
 
 if dimension == 2
@@ -252,7 +257,7 @@ for i=1:number/2
     dg=dataRaw{i,4}-max(dataRaw{i,4});
     getPlot(dataRaw{i,2},dg,generalView,"G_{xx} vs H",temperatureForTag(i))
     xlabel {H (T)}
-    ylabel {\DeltaG_{xx} (e^2/h)}
+    ylabel {\Delta\sigma_{xx} (e^2/h)}
     hold on
     
 end
@@ -275,7 +280,7 @@ for i=1:number/2
     gxxNor{i,3}=(temY-max(temY))./max(temY);
     getPlot(gxxNor{i,2},gxxNor{i,3},generalView,"Gxx(Normalized) vs B",temperatureForTag(i));
     xlabel {H (T)}
-    ylabel {G_{xx}(Normalized)}
+    ylabel {\sigma_{xx}(Normalized)}
     hold on
     clearvars temY
 end
@@ -323,7 +328,7 @@ for i=1:number/2
     opts.MaxFunEvals = 50000;
     opts.MaxIter = 50000;
     opts.Robust = 'LAR';
-    opts.StartPoint = [0.002 10 -0.00001];
+    opts.StartPoint = [0.002 0.1 -0.00001];
     opts.TolFun = 1e-08;
     opts.TolX = 1e-08;
     
@@ -338,7 +343,7 @@ for i=1:number/2
     confidenceBso(i)=abs((temConfidence(1,2)-temConfidence(2,2))/2);
     
     % Plot fit with data.
-    [dataPoint{i,1},fittingCurve{i,1}]=getFitPlot(fitresult,xData,yData,fittingView,strcat("WAL fitting result of ",thicknessForTag(i)),temperatureForTag(i),256,"\DeltaG (e^2/h)");
+    [dataPoint{i,1},fittingCurve{i,1}]=getFitPlot(fitresult,xData,yData,fittingView,strcat("WAL fitting result of ",thicknessForTag(i)),temperatureForTag(i),256,"\Delta\sigma (e^2/h)");
 %     figure( 'Name', strcat("WAL fitting for ",temperatureForTag(i)) );
 %     plot( fitresult, xData, yData ,'o');
 %     legend( 'Data points', 'Fitting curve', 'Location', 'NorthEast' );
@@ -530,12 +535,10 @@ set(gca, 'linewidth', 1.1,'fontname', 'Helvetica', 'FontSize',18)
 
 if nargin >= 4
     set(fig,'Name',titleOfPlot);
-    title(titleOfPlot);
+%     title(titleOfPlot);
 end
 
 if nargin >= 5
-    set(fig,'Name',titleOfPlot);
-    title(titleOfPlot);
     str=strcat("T=",temperature);
     text(0.95,0.05,str,'Color','blue','FontSize',24,'Units','normalized','HorizontalAlignment','right')
 end
@@ -584,17 +587,17 @@ set(gca, 'linewidth', 1.1,'fontname', 'Helvetica', 'FontSize',18)
 
 if nargin >= 5
     set(fig,'Name',titleOfPlot);
-    title(titleOfPlot);
+%     title(titleOfPlot);
 end
 
 if nargin >= 6
     if n == 256
         set(fig,'Name',"WAL fitting result");
-        title("WAL fitting result");
+%         title("WAL fitting result");
         hold on
     else
         set(fig,'Name',titleOfPlot);
-        title(titleOfPlot);
+%         title(titleOfPlot);
         str=strcat("T=",temperature);
         text(0.95,0.05,str,'Color','blue','FontSize',24,'Units','normalized','HorizontalAlignment','right')
     end
@@ -624,14 +627,12 @@ plot(x,y,'Linewidth',2);
 set(gcf,'position',[800 100 800 600]);
 set(gca, 'linewidth', 1.1,'fontname', 'Helvetica', 'FontSize',18)
 
-if nargin == 4
+if nargin >= 4
     set(gcf,'Name',titleOfPlot);
-    title(titleOfPlot);
+%     title(titleOfPlot);
 end
 
-if nargin == 5
-    set(gcf,'Name',titleOfPlot);
-    title(titleOfPlot);
+if nargin >= 5
     str=strcat("T=",temperature);
     text(0.95,0.05,str,'Color','blue','FontSize',24,'Units','normalized','HorizontalAlignment','right')
 end

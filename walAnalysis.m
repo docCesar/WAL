@@ -243,7 +243,7 @@ for i=1:number/2
     dg=dataRaw{i,4}-max(dataRaw{i,4});
     getPlot(dataRaw{i,2},dg,generalView,"G_{xx} vs H")
     xlabel {H (T)}
-    ylabel {\DeltaG_{xx} (e^2/h)}
+    ylabel {\Delta\sigma_{xx} (e^2/h)}
     hold on
     
 end
@@ -266,7 +266,7 @@ for i=1:number/2
     gxxNor{i,3}=(temY-max(temY))./max(temY);
     getPlot(gxxNor{i,2},gxxNor{i,3},generalView,"Gxx(Normalized) vs B");
     xlabel {H (T)}
-    ylabel {G_{xx}(Normalized)}
+    ylabel {\sigma_{xx}(Normalized)}
     hold on
     clearvars temY
 end
@@ -362,7 +362,7 @@ clearvars xWal yWal xData yData fitresult ftLinear gof temConfidence temFitresul
 dataPoint=cell(number/2,1);
 fittingCurve=cell(number/2,1);
 for i=1:number/2
-    [dataPoint{i,1},fittingCurve{i,1}] = getFitPlot(fitresultWAL{3,i},fitresultWAL{1,i},fitresultWAL{2,i},fittingView,strcat("WAL fitting result of ",temperatureForTag(i)),256,"\DeltaG (e^2/h)");
+    [dataPoint{i,1},fittingCurve{i,1}] = getFitPlot(fitresultWAL{3,i},fitresultWAL{1,i},fitresultWAL{2,i},fittingView,strcat("WAL fitting result of ",temperatureForTag(i)),256,"\Delta\sigma (e^2/h)");
 end
 legend(fliplr([dataPoint{:,1},fittingCurve{1,1}]),fliplr([temperatureForTag(1:number/2),"Fitting curve"]),'Location','southeastoutside')
 legend('boxoff')
@@ -626,7 +626,7 @@ plot(x,y,'Linewidth',2);
 set(gcf,'position',[1000 100 800 600]);
 set(gca, 'linewidth', 1.1,'fontname', 'Helvetica', 'FontSize',18)
 
-if nargin == 4
+if nargin >= 4
     set(gcf,'Name',titleOfPlot);
     title(titleOfPlot);
 end
