@@ -308,6 +308,7 @@ for i=1:number/2
     % Pretreatment of data.
     % Get the abstract of hxx.
     % xWal = abs(dataRaw{i,2});
+     temFitresultWAL=cell(3,1);
     xWal = dataRaw{i,2};
     yWal = dataRaw{i,4}-sigma0(i);
     [xData, yData] = prepareCurveData( xWal, yWal );  
@@ -334,10 +335,7 @@ for i=1:number/2
     
     % Remove the linear component
     yData=yData-fitresultLinear(xData);
-    
-    % Save the modified data
-    dataMod{i,2}=xData;
-    dataMod{i,4}=yData;
+    dataMod
     
     % Plot fit with data.
     % figure( 'Name', 'untitled fit 1' );
@@ -386,7 +384,7 @@ opts = fitoptions( 'Method', 'NonlinearLeastSquares' );
 %         return
 %     end
 %     
-    clearvars xWal yWal xData yData fitresult ftLinear ftInter gof temConfidence opts fitresultLinear gofLinear xTem yTem
+    clearvars xWal yWal xData yData fitresult ftLinear gof temConfidence temFitresultWAL opts fitresultLinear gofLinear xTem yTem
 end
 % delete(gcp('nocreate'))
 figure(256)
