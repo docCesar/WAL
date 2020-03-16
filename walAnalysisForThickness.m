@@ -321,24 +321,27 @@ for i=1:number/2
     
     % Set up fittype and options.
     ft = fittype( '1/3.14159*(-psi((bso+be)/abs(x)+0.5)+log((bso+be)/abs(x))+1.5*psi((bi+4*bso/3)/abs(x)+0.5)-1.5*log((bi+4*bso/3)/abs(x))-0.5*psi(bi/abs(x)+0.5)+0.5*log(bi/abs(x)))+kFactor*x^2', 'independent', 'x', 'dependent', 'y' , 'problem' , 'be' );
-    opts = fitoptions( 'Method', 'NonlinearLeastSquares' );
+% ft = fittype( '1/3.14159*(-psi((abs(bso)+abs(be))/abs(x)+0.5)+log((abs(bso)+abs(be))/abs(x))+1.5*psi((abs(bi)+4*abs(bso)/3)/abs(x)+0.5)-1.5*log((abs(bi)+4*abs(bso)/3)/abs(x))-0.5*psi(abs(bi)/abs(x)+0.5)+0.5*log(abs(bi)/abs(x)))+kFactor*x^2', 'independent', 'x', 'dependent', 'y' , 'problem' , 'be' );
+        
+opts = fitoptions( 'Method', 'NonlinearLeastSquares' );
     opts.DiffMinChange = 1e-16;
     opts.Display = 'Off'; 
     opts.Lower = [0 0 -Inf];
-    opts.MaxFunEvals = 50000;
-    opts.MaxIter = 50000;
+    opts.MaxFunEvals = 100000;
+    opts.MaxIter = 100000;
     opts.Robust = 'LAR';
     opts.StartPoint = [0.002 0.1 -0.00001];
-    opts.TolFun = 1e-08;
-    opts.TolX = 1e-08;
+    opts.TolFun = 1e-12;
+    opts.TolX = 1e-12;
     
     % Fit model to data.
-    [fitresult, gof] = fit( xData, yData, ft, opts , 'problem' , be(i));
+    [fitresult, gof, output] = fit( xData, yData, ft, opts , 'problem' , be(i));
     
+    eval(['output_',num2str(i),'=output;']);
     kFactor(i)=fitresult.kFactor;
-    bso(i)=fitresult.bso;
-    bi(i)=fitresult.bi;
-    temConfidence=confint(fitresult);
+    bso(i)=fitresult.bso
+    bi(i)=fitresult.bi
+    temConfidence=confint(fitresult)
     confidenceBi(i)=abs((temConfidence(1,1)-temConfidence(2,1))/2);
     confidenceBso(i)=abs((temConfidence(1,2)-temConfidence(2,2))/2);
     
@@ -359,7 +362,7 @@ for i=1:number/2
 %         return
 %     end
 %     
-    clearvars xWal yWal xData yData fitresult ftLinear gof temConfidence temFitresultWAL opts fitresultLinear gofLinear
+%     clearvars xWal yWal xData yData fitresult ftLinear gof temConfidence temFitresultWAL opts fitresultLinear gofLinear
 end
 % delete(gcp('nocreate'))
 figure(256)
@@ -566,7 +569,7 @@ end
 if n==256
 fig=figure(n);
 else
-    fig=figure
+    fig=figure;
 end
 set(gcf,'position',[800 100 800 600]);
 
