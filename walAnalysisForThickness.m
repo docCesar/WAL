@@ -8,10 +8,11 @@ mkdir temFitPlots;
 % Number of cores
 % coreNumber=4;
 
-% Constants
+% Constants (The effective mass of electron should be considered.)
 h=6.6260699*10^-34;
 hbar=1.0545718e-34;
 me=9.10938356*10^(-31);
+% me = 0.15 * 1.6*9.10938356*10^(-31);
 e=1.60217662*10^-19;
 
 % Parameters of samples
@@ -24,7 +25,7 @@ asp=24;         % Large devices of new mask
 % thick=thick*10^-9; % Nanometer
 
 fittingView=false;
-fittingView=input('Do you want to check the status of fitting curve ?\nPlease enter 1 for YES or 0 for NO.\n')
+fittingView=input('Do you want to check the status of fitting curve ?\nPlease enter 1 for YES or 0 for NO.\n');
 fittingView=logical(fittingView);
 generalView=true;
 
@@ -54,7 +55,7 @@ bi=zeros(1,number/2);
 bso=zeros(1,number/2);
 confidenceBi=zeros(1,number/2);
 confidenceBso=zeros(1,number/2);
-kFactor=zeros(1,number/2);
+% kFactor=zeros(1,number/2);
 
 temperatureForCheck=string;
 temperatureForNum=zeros(1,number/2);
@@ -156,7 +157,7 @@ clearvars i j
 %% rHall vs H
 figure
 for i=1:number/2
-   getPlot(dataRaw{i,5},dataRaw{i,6},generalView,"R_{xy} vs H",temperatureForTag(i))
+   getPlot(dataRaw{i,5},dataRaw{i,6},generalView,"R_{xy} vs H",temperatureForTag(i));
    xlabel {H (T)}
    ylabel {R_{xy} (\Omega)}
    hold on
@@ -212,7 +213,7 @@ for i=1:number/2
     
     % Plot fit with data.
     getFitPlot(fitresult,xData,yData,fittingView,strcat("Hall fitting result of ",thicknessForTag(i)),temperatureForTag(i),1,"R_{xy} (\Omega)");
-
+    
     % Label axes
 %     xlabel {H (T)}
 %     ylabel {R_{xy} (\Omega)}
@@ -223,18 +224,20 @@ end
 % Properties from Hall fitting.
 ne=abs(1./e./hall);
 neBulk=ne./([dataRaw{:,1}].*1e-9);
-mu=(e^2/h).*sigma0./(e.*ne);
-taup=me./e.*mu;
 
 if dimension == 2
     kf=(2.*pi.*ne).^(1/2);
+    mu=(e^2/h).*sigma0./(e.*ne);
 elseif dimension == 3
-    kf=(3.*pi.^2.*ne).^(1/3);    % Here ne should be in bulk
+    kf=(3.*pi.^2.*neBulk).^(1/3);    % Here ne should be in bulk
+    mu=(e^2/h).*sigma0./(e.*neBulk);
 else
+    fprintf("Wrong dimension.\n")
     error('ERROR 04');
     return
 end
 
+taup=me./e.*mu;
 vf=hbar./me.*kf;
 dif=vf.^(dimension).*taup./dimension;
 be=hbar./(4.*e.*dif.*taup);
@@ -245,7 +248,7 @@ fprintf("Hall fitting finished.\nWaiting for WAL fitting.\n")
 
 figure
 for i=1:number/2
-    getPlot(dataRaw{i,2},dataRaw{i,3},generalView,"R_{xx} vs H",temperatureForTag(i))
+    getPlot(dataRaw{i,2},dataRaw{i,3},generalView,"R_{xx} vs H",temperatureForTag(i));
     xlabel {H (T)}
     ylabel {R_{xx} (\Omega)}
     hold on
@@ -263,7 +266,7 @@ saveas(gcf,path,'jpeg');
 figure
 for i=1:number/2
     dg=dataRaw{i,4}-max(dataRaw{i,4});
-    getPlot(dataRaw{i,2},dg,generalView,"G_{xx} vs H",temperatureForTag(i))
+    getPlot(dataRaw{i,2},dg,generalView,"G_{xx} vs H",temperatureForTag(i));
     xlabel {H (T)}
     ylabel {\Delta\sigma_{xx} (e^2/h)}
     hold on
@@ -301,93 +304,99 @@ saveas(gcf,path,'jpeg');
 
 %% WAL fitting
 % Format of dataRaw: {Temperature, hxx, rxx, gxx, hxy, rxy, rxyCali}
-dataPoint=cell(number/2,1);
-fittingCurve=cell(number/2,1);
+dataPoint = cell(number/2,1);
+fittingCurve = cell(number/2,1);
+outputFitting = cell(number/2,1);
 % parpool('local',coreNumber)
 for i=1:number/2
     % Pretreatment of data.
     % Get the abstract of hxx.
     % xWal = abs(dataRaw{i,2});
     xWal = dataRaw{i,2};
-    yWal = dataRaw{i,4}-sigma0(i);
+    yWal = dataRaw{i,3};
     [xData, yData] = prepareCurveData( xWal, yWal );  
-    
-    %% Remove asymmetric component
-    % Set up fittype and options.
-    ftInter = 'linearinterp';
-    
-    % Fit model to data.
-    [fitresultInter, gof] = fit( xData, yData, ftInter, 'Normalize', 'on' );
-    
-    % Derive the linear component
-    xTem=[min(xData)*0.95:0.0001:max(xData)*0.95]';
-    yTem=(fitresultInter(xTem)-fitresultInter(-xTem))./2;
-    
-    % Fit the linear component
-    [xLinear, yLinear] = prepareCurveData( xTem, yTem );
-    
-    % Set up fittype and options.
-    ftLinear = fittype( 'poly1' );
 
-    % Fit model to data.
-    [fitresultLinear, gof] = fit( xTem, yTem, ftLinear );
+    %% Remove disturbed components
+    % Set up fittype and options.
+%     ftInter = 'smoothingspline';
+    ftInter = 'nearestinterp';
     
-    % Remove the linear component
-    yData=yData-fitresultLinear(xData);
+    % Fit model to data.
+%     [fitresultInter, gof] = fit( xData, yData, ftInter);
+    [fitresultInter, gof] = fit( xData, yData, ftInter, 'Normalize', 'on');
+    
+    
+    % Remove the asymmetric component
+    yData = abs( yData + fitresultInter(-xData) ) ./ 2;
+%     yData = abs( yData + fitresultInter(-xData) ) ./ 2;
+    
+    % Select the data in high field
+    temx = xData((xData > -8.9 & xData < -6) | (xData > 6 & xData < 8.9));
+    temy = yData((xData > -8.9 & xData < -6) | (xData > 6 & xData < 8.9));
+    weight = temx .^ 16;
+    
+    % Remove the classic component
+    [temx, temy, weight] = prepareCurveData( temx, temy, weight );
+    ft = fittype( 'p1*x^2 + p0', 'independent', 'x', 'dependent', 'y' );
+    opts = fitoptions( 'Method', 'NonlinearLeastSquares' );
+    opts.Display = 'Off';
+    opts.StartPoint = [0.01 0];
+    opts.Weights = weight;
+    [fitresultRxxCali, gofRxxCali] = fit( temx, temy, ft, opts );
+    
+    % Plot the classic component
+    getFitPlot(fitresultRxxCali,xWal,yWal,fittingView,"Classic component and raw data",temperatureForTag(i),1,"R_{xx} (\Omega)");
+    
+    
+    %% Prepare for HLN fitting
+    yData = yData - fitresultRxxCali(xData) + fitresultRxxCali.p0;
     
     % Save the modified data
-    dataMod{i,2}=xData;
-    dataMod{i,4}=yData;
+    dataMod{i, 2} = xData;
+    dataMod{i, 3} = yData;
+    yDataSigma = asp.*h./(e.^2)./yData;
+    yDataSigma = yDataSigma - max(yDataSigma);
+    dataMod{i, 4} = yDataSigma;
     
-    % Plot fit with data.
-    % figure( 'Name', 'untitled fit 1' );
-    % plot( fitresultLinear, xData, yData );    
-    
+    % Plot modified data.
+    getScatter(xData,yDataSigma,generalView,["Modified conductance of "+thicknessForTag{i}],temperatureForTag(i),["H_{ex} (T)", "\Delta\sigma (e^2/h)"]);
+
+    %% HLN fitting
     % Set up fittype and options.
-    ft = fittype( '1/3.14159*(-psi((bso+be)/abs(x)+0.5)+log((bso+be)/abs(x))+1.5*psi((bi+4*bso/3)/abs(x)+0.5)-1.5*log((bi+4*bso/3)/abs(x))-0.5*psi(bi/abs(x)+0.5)+0.5*log(bi/abs(x)))+kFactor*x^2', 'independent', 'x', 'dependent', 'y' , 'problem' , 'be' );
+         ft = fittype( '1/3.14159*(-psi((bso+be)/abs(x)+0.5)+log((bso+be)/abs(x))+1.5*psi((bi+4*bso/3)/abs(x)+0.5)-1.5*log((bi+4*bso/3)/abs(x))-0.5*psi(bi/abs(x)+0.5)+0.5*log(bi/abs(x)))', 'independent', 'x', 'dependent', 'y' , 'problem' , 'be' );
+%      ft = fittype( '1/3.14159*(-psi((bso+be)/abs(x)+0.5)+log((bso+be)/abs(x))+1.5*psi((bi+4*bso/3)/abs(x)+0.5)-1.5*log((bi+4*bso/3)/abs(x))-0.5*psi(bi/abs(x)+0.5)+0.5*log(bi/abs(x)))+kFactor*x^2', 'independent', 'x', 'dependent', 'y' , 'problem' , 'be' );
+%      ft = fittype(
+%      '-1/3.14159*(psi((bso+bi)/abs(x)+0.5)+0.5*psi((bso+2*bi)/abs(x)+0.5)-0.5*psi(bi/abs(x))-log((bso+bi)/abs(x))-0.5*log((bso+2*bi)/abs(x))+0.5*log(bi/abs(x))+kFactor*x^2+be*1e-13)', 'independent', 'x', 'dependent', 'y' , 'problem' , 'be' );           % For ILP model
 % ft = fittype( '1/3.14159*(-psi((abs(bso)+abs(be))/abs(x)+0.5)+log((abs(bso)+abs(be))/abs(x))+1.5*psi((abs(bi)+4*abs(bso)/3)/abs(x)+0.5)-1.5*log((abs(bi)+4*abs(bso)/3)/abs(x))-0.5*psi(abs(bi)/abs(x)+0.5)+0.5*log(abs(bi)/abs(x)))+kFactor*x^2', 'independent', 'x', 'dependent', 'y' , 'problem' , 'be' );
         
-opts = fitoptions( 'Method', 'NonlinearLeastSquares' );
-    opts.DiffMinChange = 1e-16;
+    opts = fitoptions( 'Method', 'NonlinearLeastSquares' );
+    opts.DiffMinChange = 1e-18;
     opts.Display = 'Off'; 
-    opts.Lower = [0 0 -Inf];
-    opts.MaxFunEvals = 100000;
-    opts.MaxIter = 100000;
-    opts.Robust = 'LAR';
-    opts.StartPoint = [0.002 0.1 -0.00001];
-    opts.TolFun = 1e-12;
-    opts.TolX = 1e-12;
+    opts.Lower = [0 0];
+    opts.MaxFunEvals = 1000000;
+    opts.MaxIter = 1000000;
+    opts.Robust = 'Bisquare';
+    opts.StartPoint = [0.002 0.1];
+    opts.TolFun = 1e-13;
+    opts.TolX = 1e-13;
     
     % Fit model to data.
-    [fitresult, gof, output] = fit( xData, yData, ft, opts , 'problem' , be(i));
+    [fitresult, gof, outputFitting{i,1}] = fit( xData, yDataSigma, ft, opts , 'problem' , be(i));
     
-    eval(['output_',num2str(i),'=output;']);
-    kFactor(i)=fitresult.kFactor;
-    bso(i)=fitresult.bso
-    bi(i)=fitresult.bi
-    temConfidence=confint(fitresult)
+%     eval(['output_',num2str(i),'=output;']);
+%     kFactor(i)=fitresult.kFactor;
+    
+    bso(i)=fitresult.bso;
+    bi(i)=fitresult.bi;
+    temConfidence=confint(fitresult);
     confidenceBi(i)=abs((temConfidence(1,1)-temConfidence(2,1))/2);
     confidenceBso(i)=abs((temConfidence(1,2)-temConfidence(2,2))/2);
     
     % Plot fit with data.
-    [dataPoint{i,1},fittingCurve{i,1}]=getFitPlot(fitresult,xData,yData,fittingView,strcat("WAL fitting result of ",thicknessForTag(i)),temperatureForTag(i),256,"\Delta\sigma (e^2/h)");
-%     figure( 'Name', strcat("WAL fitting for ",temperatureForTag(i)) );
-%     plot( fitresult, xData, yData ,'o');
-%     legend( 'Data points', 'Fitting curve', 'Location', 'NorthEast' );
-%     title(strcat("WAL fitting for ",temperatureForTag(i)))
-    % Label axes
-%     xlabel {H_{ex} (T)}
-%     ylabel {\DeltaG (e^2/h)}
-%     grid on
-%     hold on
+    [dataPoint{i,1},fittingCurve{i,1}]=getFitPlot(fitresult,xData,yDataSigma,fittingView,strcat("WAL fitting result of ",thicknessForTag(i)),temperatureForTag(i),256,"\Delta\sigma (e^2/h)");     
     
-    %%%%%%%%%%%%%%%%%%%%
-%     if i==1
-%         return
-%     end
-%     
-    clearvars xWal yWal xData yData fitresult ftLinear ftInter gof temConfidence opts fitresultLinear gofLinear xTem yTem
 end
+clearvars xWal yWal xData yData yDataSigma xLinear yLinear fitresult ftLinear ftInter gof temConfidence opts fitresultLinear gofLinear xTem yTem ouput temx temy weight fitresultRxxCali gofRxxCali ft fitresultInter output;
 % delete(gcp('nocreate'))
 figure(256)
 legend([dataPoint{:,1},fittingCurve{1,1}],[thicknessForTag(1:number/2),"Fitting curve"],'Location','eastoutside')
@@ -421,88 +430,94 @@ ltr = ltr.*10^9;           % Nanometer
 i=1;    % Set for tag of temperature
 
 %% Hall coefficients vs thickness
-getScatter(thicknessForNum(1:number/2),hall,generalView,"Hall coefficient vs Thickness",temperatureForTag(i),{"Thickness (nm)","H_e (m^2/C)"});
-getErrorBar(thicknessForNum(1:number/2),hall,confidenceHall,generalView,"Hall coefficient vs Thickness with error bar",{"Thickness (nm)","H_e (m^2/C)"})
+getScatter(thicknessForNum(1:number/2),hall,generalView,"Hall coefficient vs Thickness",temperatureForTag(i),["Thickness (nm)","H_e (m^2/C)"]);
+getErrorBar(thicknessForNum(1:number/2),hall,confidenceHall,generalView,"Hall coefficient vs Thickness with error bar",["Thickness (nm)","H_e (m^2/C)"]);
 
 %% ne vs thickness
-getScatter(thicknessForNum(1:number/2),ne,generalView,"n_e vs Thickness",temperatureForTag(i),{"Thickness (nm)","n_e (cm^{-2})"})
+getScatter(thicknessForNum(1:number/2),ne,generalView,"n_e vs Thickness",temperatureForTag(i),["Thickness (nm)","n_e (cm^{-2})"]);
 % xlabel {Thickness (nm)}
 % ylabel {n_e (cm^{-2})}
 
 %% D vs thickness
-getScatter(thicknessForNum(1:number/2),dif,generalView,"D vs thickness",temperatureForTag(i),{"Thickness (nm)","D (cm^2/s)"})
+getScatter(thicknessForNum(1:number/2),dif,generalView,"D vs thickness",temperatureForTag(i),["Thickness (nm)","D (cm^2/s)"]);
 % xlabel {Thickness (nm)}
 % ylabel {D (cm^2/s)}
 
+%% L_tr vs thickness
+getScatter(thicknessForNum(1:number/2),ltr,generalView,"L_tr vs thickness",temperatureForTag(i),["Thickness (nm)","L_tr (nm)"]);
+% xlabel {Thickness (nm)}
+% ylabel {L_tr (m)}
+
 %% L_SO vs thickness
-getScatter(thicknessForNum(1:number/2),lso,generalView,"L_{SO} vs thickness",temperatureForTag(i),{"Thickness (nm)","L_{SO} (nm)"});
+getScatter(thicknessForNum(1:number/2),lso,generalView,"L_{SO} vs thickness",temperatureForTag(i),["Thickness (nm)","L_{SO} (nm)"]);
 % xlabel {Thickness (nm)}
 % ylabel {L_{SO} (m)}
 
 %% L_Phi vs thickness
-getScatter(thicknessForNum(1:number/2),lphi,generalView,"L_{\phi} vs thickness",temperatureForTag(i),{"Thickness (nm)","L_\phi (nm)"});
+getScatter(thicknessForNum(1:number/2),lphi,generalView,"L_{\phi} vs thickness",temperatureForTag(i),["Thickness (nm)","L_\phi (nm)"]);
 % xlabel {Thickness (nm)}
 % ylabel {L_\phi (m)}
 
 %% L_SO vs D
-getScatter(dif,lso,generalView,"L_{SO} vs D",temperatureForTag(i),{"D (cm^2/s)","L_{SO} (nm)"});
+getScatter(dif,lso,generalView,"L_{SO} vs D",temperatureForTag(i),["D (cm^2/s)","L_{SO} (nm)"]);
 % xlabel {D (cm^2/s)}
 % ylabel {L_{SO} (m)}
 
 %% Tau_SO vs Tau_p
-getScatter(taup,tauso,generalView,"\tau_{SO} vs \tau_p",temperatureForTag(i),{"\tau_p (fs)","\tau_{SO} (fs)"});
+getScatter(taup,tauso,generalView,"\tau_{SO} vs \tau_p",temperatureForTag(i),["\tau_p (fs)","\tau_{SO} (fs)"]);
 % xlabel {\tau_p (fs)}
 % ylabel {\tau_{SO} (fs)}
 
 %% Tau_SO vs D
-getScatter(dif,tauso,generalView,"\tau_{SO} vs D",temperatureForTag(i),{"D (cm^2/s)","\tau_{SO} (fs)"});
+getScatter(dif,tauso,generalView,"\tau_{SO} vs D",temperatureForTag(i),["D (cm^2/s)","\tau_{SO} (fs)"]);
 % xlabel {D (cm^2/s)}
 % ylabel {\tau_{SO} (fs)}
 
 %% mu vs thickness
-getScatter(thicknessForNum(1:number/2),mu,generalView,"\mu vs thickness",temperatureForTag(i),{"Thickness (nm)","\mu (cm^2/V/s)"});
+getScatter(thicknessForNum(1:number/2),mu,generalView,"\mu vs thickness",temperatureForTag(i),["Thickness (nm)","\mu (cm^2/V/s)"]);
 % xlabel {Thickness (nm)}
 % ylabel {\mu (cm^2/V/s)}
 
 %% Tau_SO vs thickness
-getScatter(thicknessForNum(1:number/2),tauso,generalView,"\tau_{SO} vs thickness",temperatureForTag(i),{"Thickness (nm)","\tau_{SO} (fs)"});
+getScatter(thicknessForNum(1:number/2),tauso,generalView,"\tau_{SO} vs thickness",temperatureForTag(i),["Thickness (nm)","\tau_{SO} (fs)"]);
 % xlabel {Thickness (nm)}
 % ylabel {\tau_{SO} (fs)}
 
 %% Tau_phi vs thickness
-getScatter(thicknessForNum(1:number/2),tauphi,generalView,"\tau_{\phi} vs thickness",temperatureForTag(i),{"Thickness (nm)","\tau_{\phi} (fs)"});
+getScatter(thicknessForNum(1:number/2),tauphi,generalView,"\tau_{\phi} vs thickness",temperatureForTag(i),["Thickness (nm)","\tau_{\phi} (fs)"]);
 % xlabel {Thickness (nm)}
 % ylabel {\tau_{\phi} (fs)}
 
 %% Tau_p vs thickness
-getScatter(thicknessForNum(1:number/2),taup,generalView,"\tau_p vs thickness",temperatureForTag(i),{"Thickness (nm)","\tau_p (fs)"});
+getScatter(thicknessForNum(1:number/2),taup,generalView,"\tau_p vs thickness",temperatureForTag(i),["Thickness (nm)","\tau_p (fs)"]);
 % xlabel {Thickness (nm)}
 % ylabel {\tau_p (fs)}
 
 %% vf vs thickness
-getScatter(thicknessForNum(1:number/2),vf,generalView,"v_f vs thickness",temperatureForTag(i),{"Thickness (nm)","v_f "});
+getScatter(thicknessForNum(1:number/2),vf,generalView,"v_f vs thickness",temperatureForTag(i),["Thickness (nm)","v_f "]);
 % xlabel {Thickness (nm)}
 % ylabel {v_f }
 
 %% gCritical vs thickness
-getScatter(thicknessForNum(1:number/2),gCritical,generalView,"g_{Cri} vs thickness",temperatureForTag(i),{"Thickness (nm)","g_{Cri} (a.u.)"});
+getScatter(thicknessForNum(1:number/2),gCritical,generalView,"g_{Cri} vs thickness",temperatureForTag(i),["Thickness (nm)","g_{Cri} (a.u.)"]);
 % xlabel {Thickness (nm)}
 % ylabel {v_f }
 
 %% Bso vs thickness
-getScatter(thicknessForNum(1:number/2),bso,generalView,"B_{SO} vs thickness",temperatureForTag(i),{"Thickness (nm)","B_{SO} (T)"});
+getScatter(thicknessForNum(1:number/2),bso,generalView,"B_{SO} vs thickness",temperatureForTag(i),["Thickness (nm)","B_{SO} (T)"]);
 % xlabel {Thickness (nm)}
 % ylabel {B_{SO} (T)}
-getErrorBar(thicknessForNum(1:number/2),bso,confidenceBso,generalView,"B_{SO} vs Thickness with error bar",{"Thickness (nm)","B_{SO} (T)"})
+getErrorBar(thicknessForNum(1:number/2),bso,confidenceBso,generalView,"B_{SO} vs Thickness with error bar",["Thickness (nm)","B_{SO} (T)"]);
 
 %% Bi vs thickness
-getScatter(thicknessForNum(1:number/2),bi,generalView,"B_i vs thickness",temperatureForTag(i),{"Thickness (nm)","B_i (T)"});
+getScatter(thicknessForNum(1:number/2),bi,generalView,"B_i vs thickness",temperatureForTag(i),["Thickness (nm)","B_i (T)"]);
 
-getErrorBar(thicknessForNum(1:number/2),bi,confidenceBi,generalView,"B_i vs Thickness with error bar",{"Thickness (nm)","B_i (T)"})
+getErrorBar(thicknessForNum(1:number/2),bi,confidenceBi,generalView,"B_i vs Thickness with error bar",["Thickness (nm)","B_i (T)"]);
 
 clearvars i path
 fprintf("Program completed.\n")
 toc
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function [x,y] = importfile(filename, startRow, endRow)
 %% Initialization
@@ -551,14 +566,14 @@ end
 fig=figure;
 
 if generalView==false
-    set(fig,'Visible','off')
+    set(fig,'Visible','off');
 end
 
-plot(x,y,'o-','LineWidth',2.5)
+plot(x,y,'o','LineWidth',2.5);
 set(gcf,'position',[800 100 800 600]);
 xlim([1.1*min(x)-0.1*max(x) 1.1*max(x)-0.1*min(x)]);
 ylim([1.1*min(y)-0.1*max(y) 1.1*max(y)-0.1*min(y)]);
-set(gca, 'linewidth', 1.1,'fontname', 'Helvetica', 'FontSize',18)
+set(gca, 'linewidth', 1.1,'fontname', 'Helvetica', 'FontSize',18);
 
 if nargin >= 4
     set(fig,'Name',titleOfPlot);
@@ -567,12 +582,12 @@ end
 
 if nargin >= 5
     str=strcat("T=",temperature);
-    text(0.95,0.05,str,'Color','blue','FontSize',24,'Units','normalized','HorizontalAlignment','right')
+    text(0.95,0.05,str,'Color','blue','FontSize',24,'Units','normalized','HorizontalAlignment','right');
 end
 
 if nargin >= 6
-    xlabel(label{1})
-    ylabel(label{2})
+    xlabel(label{1});
+    ylabel(label{2});
 end
 
 grid on
@@ -598,19 +613,19 @@ end
 set(gcf,'position',[800 100 800 600]);
 
 if fittingView==false
-    set(fig,'Visible','off')
+    set(fig,'Visible','off');
 end
 
 dataPoint=plot(xData, yData ,'o','LineWidth',2);
 hold on
 fittingCurve=plot(fitresult,'r:');
 fittingCurve.LineWidth=4;
-xlabel {H_{ex} (T)}
+xlabel {H_{ex} (T)};
 if nargin >= 7
-    ylabel(yLabel)
+    ylabel(yLabel);
 end
-legend({"Data Point","Fitting Curve"});
-set(gca, 'linewidth', 1.1,'fontname', 'Helvetica', 'FontSize',18)
+legend(["Data Point","Fitting Curve"]);
+set(gca, 'linewidth', 1.1,'fontname', 'Helvetica', 'FontSize',18);
 
 if nargin >= 5
     set(fig,'Name',titleOfPlot);
@@ -626,7 +641,7 @@ if nargin >= 6
         set(fig,'Name',titleOfPlot);
 %         title(titleOfPlot);
         str=strcat("T=",temperature);
-        text(0.95,0.05,str,'Color','blue','FontSize',24,'Units','normalized','HorizontalAlignment','right')
+        text(0.95,0.05,str,'Color','blue','FontSize',24,'Units','normalized','HorizontalAlignment','right');
     end
 end
 
@@ -647,12 +662,12 @@ if nargin < 3
 end
 
 if generalView == false
-    set(fig,'Visible','off')
+    set(fig,'Visible','off');
 end
 
 plot(x,y,'Linewidth',2);
 set(gcf,'position',[800 100 800 600]);
-set(gca, 'linewidth', 1.1,'fontname', 'Helvetica', 'FontSize',18)
+set(gca, 'linewidth', 1.1,'fontname', 'Helvetica', 'FontSize',18);
 
 if nargin >= 4
     set(gcf,'Name',titleOfPlot);
@@ -661,7 +676,7 @@ end
 
 if nargin >= 5
     str=strcat("T=",temperature);
-    text(0.95,0.05,str,'Color','blue','FontSize',24,'Units','normalized','HorizontalAlignment','right')
+    text(0.95,0.05,str,'Color','blue','FontSize',24,'Units','normalized','HorizontalAlignment','right');
 end
 
 grid on
@@ -673,28 +688,28 @@ end
 function getErrorBar(x,y,confidence,generalView,titleOfPlot,label)
 
 if nargin < 4
-    generalView=true
+    generalView=true;
 end
 
 fig=figure;
 
 if generalView==false
-    set(fig,'Visible','off')
+    set(fig,'Visible','off');
 end
 
-errorbar(x,y,confidence,'LineWidth',2.5)
+errorbar(x,y,confidence,'LineWidth',2.5);
 set(gcf,'position',[800 100 800 600]);
 xlim([1.1*min(x)-0.1*max(x) 1.1*max(x)-0.1*min(x)]);
 ylim([1.1*min(y)-0.1*max(y) 1.1*max(y)-0.1*min(y)]);
-set(gca, 'linewidth', 1.1,'fontname', 'Helvetica', 'FontSize',18)
+set(gca, 'linewidth', 1.1,'fontname', 'Helvetica', 'FontSize',18);
 if nargin >= 5
     set(fig,'Name',titleOfPlot);
     title(titleOfPlot);
 end
 grid on
 if nargin >= 6
-    xlabel(label{1})
-    ylabel(label{2})
+    xlabel(label{1});
+    ylabel(label{2});
 end
 titleOfPlot=strrep(titleOfPlot,'\','');
 path=strcat("temPlots\",titleOfPlot);

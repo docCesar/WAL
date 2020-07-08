@@ -7,7 +7,7 @@ mkdir temFitPlots;
 clearvars status
 
 % Number of cores
-coreNumber=4;
+coreNumber=8;
 
 % Constants
 h=6.6260699*10^-34;
