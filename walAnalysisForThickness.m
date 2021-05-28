@@ -11,15 +11,17 @@ mkdir temFitPlots;
 % Constants (The effective mass of electron should be considered.)
 h=6.6260699*10^-34;
 hbar=1.0545718e-34;
-me=9.10938356*10^(-31);
-% me = 0.15 * 1.6*9.10938356*10^(-31);
+% me = 1 * 9.10938356*10^(-31);
+me = 0.15 * 9.10938356*10^(-31);
+% me = 0.044 * 9.10938356*10^(-31);
 e=1.60217662*10^-19;
+ev = 6.24150913*10^18;
 
 % Parameters of samples
 dimension=2;
 % asp=4;          % Old mask
 % asp=2.5;        % Small devices of new mask
-asp=24;         % Large devices of new mask
+asp=24;         % Large devices of new mask 240 um * 10 um
 % thick=5*10^-9; % Thickness of sample layer
 % thick=input('Please enter the thickness of samples in nanometers\n')
 % thick=thick*10^-9; % Nanometer
@@ -37,11 +39,12 @@ fileName=dir(fullfile('*.txt'));
 number=length(fileName);
 % Claim variables.
 
-% Format of dataRaw: {Temperature, hxx, rxx, gxx, hxy, rxy, rxyCali}
+% Format of dataRaw: {thickness, hxx, rxx, gxx, hxy, rxy, }
 dataRaw=cell(number/2,6);
 dataMod=cell(number/2,6);
 sigma0=zeros(1,number/2);
 hall=zeros(1,number/2);
+fittedHall=cell(number/2,1);
 confidenceHall=zeros(1,number/2);
 mu=zeros(1,number/2);
 taup=zeros(1,number/2);
@@ -96,7 +99,6 @@ for i=1:number
         j=find([dataRaw{:,1}]==thicknessForNum(i));
     else
         error('ERROR 01');
-        return
     end
     
     [x,y] = importfile(fileName(i).name);
@@ -125,12 +127,11 @@ for i=1:number
         dataRaw{j,6}=y;
     else
         error('ERROR 02:Something wrong with file name.' );
-        return
     end
     %%
     clearvars x y m direction temperature j temR;
 end
-
+ 
 dataMod(:,1)=dataRaw(:,1);
 
 temperatureForTag(1)=[];
@@ -148,7 +149,6 @@ for i=1:number/2
     for j=2:6
         if isempty(dataRaw{i,j})==1
           error('ERROR 03');
-          return
         end
     end
 end
@@ -217,7 +217,8 @@ for i=1:number/2
     % Label axes
 %     xlabel {H (T)}
 %     ylabel {R_{xy} (\Omega)}
-    
+    fittedHall{i,1} = xData;
+    fittedHall{i,2} = yData;
     clearvars xData yData ft fitresult gof opts ftHallLinear gofHallLinear fitresultHallLinear gofHallLinear
 end
 
@@ -234,7 +235,6 @@ elseif dimension == 3
 else
     fprintf("Wrong dimension.\n")
     error('ERROR 04');
-    return
 end
 
 taup=me./e.*mu;
@@ -307,6 +307,7 @@ saveas(gcf,path,'jpeg');
 dataPoint = cell(number/2,1);
 fittingCurve = cell(number/2,1);
 outputFitting = cell(number/2,1);
+gofHLN = cell(number/2,1);
 % parpool('local',coreNumber)
 for i=1:number/2
     % Pretreatment of data.
@@ -318,7 +319,7 @@ for i=1:number/2
 
     %% Remove disturbed components
     % Set up fittype and options.
-%     ftInter = 'smoothingspline';
+    % ftInter = 'smoothingspline';
     ftInter = 'nearestinterp';
     
     % Fit model to data.
@@ -363,7 +364,7 @@ for i=1:number/2
 
     %% HLN fitting
     % Set up fittype and options.
-         ft = fittype( '1/3.14159*(-psi((bso+be)/abs(x)+0.5)+log((bso+be)/abs(x))+1.5*psi((bi+4*bso/3)/abs(x)+0.5)-1.5*log((bi+4*bso/3)/abs(x))-0.5*psi(bi/abs(x)+0.5)+0.5*log(bi/abs(x)))', 'independent', 'x', 'dependent', 'y' , 'problem' , 'be' );
+     ft = fittype( '1/pi*(-psi((bso+be)/abs(x)+0.5)+log((bso+be)/abs(x))+1.5*psi((bi+4*bso/3)/abs(x)+0.5)-1.5*log((bi+4*bso/3)/abs(x))-0.5*psi(bi/abs(x)+0.5)+0.5*log(bi/abs(x)))', 'independent', 'x', 'dependent', 'y' , 'problem' , 'be' );
 %      ft = fittype( '1/3.14159*(-psi((bso+be)/abs(x)+0.5)+log((bso+be)/abs(x))+1.5*psi((bi+4*bso/3)/abs(x)+0.5)-1.5*log((bi+4*bso/3)/abs(x))-0.5*psi(bi/abs(x)+0.5)+0.5*log(bi/abs(x)))+kFactor*x^2', 'independent', 'x', 'dependent', 'y' , 'problem' , 'be' );
 %      ft = fittype(
 %      '-1/3.14159*(psi((bso+bi)/abs(x)+0.5)+0.5*psi((bso+2*bi)/abs(x)+0.5)-0.5*psi(bi/abs(x))-log((bso+bi)/abs(x))-0.5*log((bso+2*bi)/abs(x))+0.5*log(bi/abs(x))+kFactor*x^2+be*1e-13)', 'independent', 'x', 'dependent', 'y' , 'problem' , 'be' );           % For ILP model
@@ -381,7 +382,7 @@ for i=1:number/2
     opts.TolX = 1e-13;
     
     % Fit model to data.
-    [fitresult, gof, outputFitting{i,1}] = fit( xData, yDataSigma, ft, opts , 'problem' , be(i));
+    [fitresult, gofHLN{i,1}, outputFitting{i,1}] = fit( xData, yDataSigma, ft, opts , 'problem' , be(i));
     
 %     eval(['output_',num2str(i),'=output;']);
 %     kFactor(i)=fitresult.kFactor;
@@ -404,13 +405,17 @@ legend('boxoff')
 saveas(gcf,"temPlots\WAL fitting results",'meta');
 print(gcf,"temPlots\WAL fitting results",'-djpeg','-r600')
 clearvars dataPoint fittingCurve
-%%
+%% In SI
 lso=sqrt(hbar./(4.*e.*bso));
 lphi=sqrt(hbar./(4.*e.*bi));
 ltr=sqrt(hbar./(4.*e.*be));
 tauso=hbar./(4*e.*bso.*dif);
 tauphi=hbar./(4*e.*bi.*dif);
 gCritical=kf.*ltr;           % g¡Ô¦Ò/(e2/h)=kf*ltr=1  dimensionless conductivity,g>>1 for conductor.
+
+omega1=(2 .* hbar .* dif .* e .* bso ./ taup) .^ 0.5;            % Spin precession of Rashba or linear Dresselhaus (DP). 
+split=2.*omega1;        % Spin splitting
+alpha=split./kf./2;         % Rashba SOC in SI
 
 fprintf("WAL fitting finished.\n")
 
@@ -426,6 +431,8 @@ taup = taup.*10^15;          % Femtosecond
 lphi = lphi.*10^9;           % Nanometer
 lso = lso.*10^9;           % Nanometer
 ltr = ltr.*10^9;           % Nanometer
+
+alpha = alpha .* ev;    % eVm
 
 i=1;    % Set for tag of temperature
 
@@ -467,6 +474,7 @@ getScatter(dif,lso,generalView,"L_{SO} vs D",temperatureForTag(i),["D (cm^2/s)",
 getScatter(taup,tauso,generalView,"\tau_{SO} vs \tau_p",temperatureForTag(i),["\tau_p (fs)","\tau_{SO} (fs)"]);
 % xlabel {\tau_p (fs)}
 % ylabel {\tau_{SO} (fs)}
+% getScatter(1./taup,tauso,generalView,"\tau_{SO} vs \tau_p^{-1}",temperatureForTag(i),["\tau_p^{-1} (fs^{-1})","\tau_{SO} (fs)"]);
 
 %% Tau_SO vs D
 getScatter(dif,tauso,generalView,"\tau_{SO} vs D",temperatureForTag(i),["D (cm^2/s)","\tau_{SO} (fs)"]);
@@ -514,7 +522,7 @@ getScatter(thicknessForNum(1:number/2),bi,generalView,"B_i vs thickness",tempera
 
 getErrorBar(thicknessForNum(1:number/2),bi,confidenceBi,generalView,"B_i vs Thickness with error bar",["Thickness (nm)","B_i (T)"]);
 
-clearvars i path
+clearvars path
 fprintf("Program completed.\n")
 toc
 

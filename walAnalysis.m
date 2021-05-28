@@ -7,13 +7,14 @@ mkdir temFitPlots;
 clearvars status
 
 % Number of cores
-coreNumber=8;
+coreNumber = 8;
 
 % Constants
-h=6.6260699*10^-34;
-hbar=1.0545718e-34;
-me=9.10938356*10^(-31);
-e=1.60217662*10^-19;
+h = 6.6260699*10^-34;
+hbar = 1.0545718e-34;
+% me = 9.10938356*10^(-31);
+me = 0.15 *  9.10938356*10^(-31);
+e = 1.60217662*10^-19;
 
 % Parameters of samples
 dimension=2;
@@ -22,6 +23,7 @@ dimension=2;
 asp=24;         % Large devices of new mask
 % thick=5*10^-9; % Thickness of sample layer
 thick=input('Please enter the thickness of samples in nanometers\n')
+thicknessForTag=strcat(thick, 'nm');
 % thick=thick*10^-9; % Nanometer
 fittingView=false;
 fittingView=input('Do you want to check the status of fitting curve ?\nPlease enter 1 for YES or 0 for NO.\n');
@@ -34,11 +36,12 @@ fileName=dir(fullfile('*.txt'));
 %fileName= dir(fullfile('d:/datafile','*.txt'));             
 %The path should be changed to what you want.
 number=length(fileName);
+
 % Claim variables.
 
 % Format of dataRaw: {Temperature, hxx, rxx, gxx, hxy, rxy}
 dataRaw=cell(number/2,6);
-
+dataMod=cell(number/2,6);
 sigma0=zeros(1,number/2);
 hall=zeros(1,number/2);
 confidenceHall=zeros(1,number/2);
@@ -133,6 +136,8 @@ for i=1:number/2
     end
 end
 clearvars i j
+
+% dataMod(:,1)=dataRaw(:,1);
 %% rHall vs H
 figure
 for i=1:number/2
@@ -197,24 +202,27 @@ for i=1:number/2
 %     ylabel {R_{xy} (\Omega)}
 end
 %     delete(gcp('nocreate'))
-    % Properties from Hall fitting.
-    ne=abs(1./e./hall);
-    neBulk=ne/(thick*1e-9);
+% Properties from Hall fitting.
+ne=abs(1./e./hall);
+neBulk=ne/(thick*1e-9);
+
+
+if dimension == 2
+    kf=(2.*pi.*ne).^(1/2);
     mu=(e^2/h).*sigma0./(e.*ne);
-    taup=me./e*mu;
-    
-    if dimension == 2
-        kf=(2.*pi.*ne).^(1/2);
-    elseif dimension == 3
-        kf=(3.*pi^2.*ne).^(1/3);
-    else
-        error('ERROR 04');
-        return
-    end
-    
-    vf=hbar./me.*kf;
-    dif=vf.^(dimension).*taup./dimension;
-    be=hbar./(4.*e.*dif.*taup);
+elseif dimension == 3
+    kf=(3.*pi^2.*ne).^(1/3);
+    mu=(e^2/h).*sigma0./(e.*neBulk);
+else
+    fprintf("Wrong dimension.\n")
+    error('ERROR 04');
+    return
+end
+
+taup=me./e*mu;
+vf=hbar./me.*kf;
+dif=vf.^(dimension).*taup./dimension;
+be=hbar./(4.*e.*dif.*taup);
 
 fprintf("Hall fitting finished.\nWaiting for WAL fitting.\n")
 
@@ -279,85 +287,112 @@ saveas(gcf,path,'jpeg');
 
 %% WAL fitting
 % Format of dataRaw: {Temperature, hxx, rxx, gxx, hxy, rxy}
+dataPoint = cell(number/2,1);
+fittingCurve = cell(number/2,1);
+outputFitting = cell(number/2,1);
+gofHLN = cell(number/2,1);
 
-parpool('local',coreNumber)
+
+parpool('local',coreNumber);
 parfor i=1:number/2
 % for i=1:number/2
     %%
     % Pretreatment of data.
     % Get the abstract of hxx.
+    temDataMod = cell(1, 5);
     temFitresultWAL=cell(3,1);
     xWal = dataRaw{i,2};
-    yWal = dataRaw{i,4}-sigma0(i);
+    yWal = dataRaw{i,3};
     [xData, yData] = prepareCurveData( xWal, yWal );  
     
-    %% Remove asymmetric component
+    %% Remove disturbed components
     % Set up fittype and options.
-    ftLinear = 'linearinterp';
-
+    % ftInter = 'smoothingspline';
+    ftInter = 'nearestinterp';
+    
     % Fit model to data.
-    [fitresultLinear, gofLinear] = fit( xData, yData, ftLinear, 'Normalize', 'on' );
+%     [fitresultInter, gof] = fit( xData, yData, ftInter);
+    [fitresultInter, gof] = fit( xData, yData, ftInter, 'Normalize', 'on');
     
-    % Substrate the linear component
-    yData=(yData+fitresultLinear(-xData))./2;
     
-    % Plot fit with data.
-    % figure( 'Name', 'untitled fit 1' );
-    % plot( fitresultLinear, xData, yData );
+    % Remove the asymmetric component
+    yData = abs( yData + fitresultInter(-xData) ) ./ 2;
+%     yData = abs( yData + fitresultInter(-xData) ) ./ 2;
     
-    %% Remove classical magnetoconductance
-%     index= find(abs(xData)>5);
-% This function is laid behind.
-    %%
+    % Select the data in high field
+    temx = xData((xData > -8.9 & xData < -6) | (xData > 6 & xData < 8.9));
+    temy = yData((xData > -8.9 & xData < -6) | (xData > 6 & xData < 8.9));
+    weight = temx .^ 16;
+    temDataMod{5}=xData;
+    temDataMod{6}=yData;
     
-    % Set up fittype and options.
-    ft = fittype( '1/(pi)*(-psi((bso+be)/abs(x)+0.5)+log((bso+be)/abs(x))+1.5*psi((bi+4*bso/3)/abs(x)+0.5)-1.5*log((bi+4*bso/3)/abs(x))-0.5*psi(bi/abs(x)+0.5)+0.5*log(bi/abs(x)))+kFactor*x^2', 'independent', 'x', 'dependent', 'y' , 'problem' , 'be' );
+    % Remove the classic component
+    [temx, temy, weight] = prepareCurveData( temx, temy, weight );
+    ft = fittype( 'p1*x^2 + p0', 'independent', 'x', 'dependent', 'y' );
     opts = fitoptions( 'Method', 'NonlinearLeastSquares' );
-    opts.DiffMinChange = 1e-16;
+    opts.Display = 'Off';
+    opts.StartPoint = [0.01 0];
+    opts.Weights = weight;
+    [fitresultRxxCali, gofRxxCali] = fit( temx, temy, ft, opts );
+    
+    % Plot the classic component
+    getFitPlot(fitresultRxxCali,xWal,yWal,fittingView,join(["Classic component and raw data for ", temperatureForTag(i)]),temperatureForNum(i),"R_{xx} (\Omega)");
+    
+    %% Prepare for HLN fitting
+    yData = yData - fitresultRxxCali(xData) + fitresultRxxCali.p0;
+    
+    % Save the modified data
+    temDataMod{1} = dataRaw{i, 1};
+    temDataMod{2} = xData;
+    temDataMod{3} = yData;
+    yDataSigma = asp.*h./(e.^2)./yData;
+    yDataSigma = yDataSigma - max(yDataSigma);
+    temDataMod{4} = yDataSigma;
+    
+    % Plot modified data.
+    getScatter(xData,yDataSigma,generalView,["Modified conductance of "+temperatureForTag(i)],["H_{ex} (T)", "\Delta\sigma_{xx} (e^2/h)"]);
+
+    %% HLN fitting
+    
+    % Set up fittype and options.
+    ft = fittype( '1/(pi)*(-psi((bso+be)/abs(x)+0.5)+log((bso+be)/abs(x))+1.5*psi((bi+4*bso/3)/abs(x)+0.5)-1.5*log((bi+4*bso/3)/abs(x))-0.5*psi(bi/abs(x)+0.5)+0.5*log(bi/abs(x)))', 'independent', 'x', 'dependent', 'y' , 'problem' , 'be' );
+    opts = fitoptions( 'Method', 'NonlinearLeastSquares' );
+    opts.DiffMinChange = 1e-18;
     opts.Display = 'Off'; 
-    opts.Lower = [0 0 -Inf ];
-    opts.Upper = [5 80 Inf ];
-    opts.MaxFunEvals = 50000;
-    opts.MaxIter = 40000;
-    opts.Robust = 'LAR';
-    opts.StartPoint = [0.002 0.1 -0.00001];
-    opts.TolFun = 1e-8;
-    opts.TolX = 1e-8;
+    opts.Lower = [0 0];
+%     opts.Upper = [5 80 Inf ];
+    opts.MaxFunEvals = 100000;
+    opts.MaxIter = 100000;
+    opts.Robust = 'Bisquare';
+    opts.StartPoint = [0.002 0.1];
+    opts.TolFun = 1e-13;
+    opts.TolX = 1e-13;
     
     % Fit model to data.
-    [fitresult, gof] = fit( xData, yData, ft, opts , 'problem' , be(i));
+    [fitresult, gofHLN{i,1}, outputFitting{i,1}] = fit( xData, yDataSigma, ft, opts , 'problem' , be(i));
 %     [fitresult, gof] = fit( xData, yData, ft, opts );
     
-    kFactor(i)=fitresult.kFactor;
     bso(i)=fitresult.bso;
     bi(i)=fitresult.bi;
     temConfidence=confint(fitresult);
     confidenceBi(i)=abs((temConfidence(1,1)-temConfidence(2,1))/2);
     confidenceBso(i)=abs((temConfidence(1,2)-temConfidence(2,2))/2);
     
-    
-    temFitresultWAL{1}=xData;
-    temFitresultWAL{2}=yData;
-    temFitresultWAL{3}=fitresult;
-    fitresultWAL(:,i)=temFitresultWAL;
+    temFitresultWAL = cell(3,1);
+    temFitresultWAL{1} = xData;
+    temFitresultWAL{2} = yDataSigma;
+    temFitresultWAL{3} = fitresult;
+    fitresultWAL(:,i) = temFitresultWAL;
+    dataMod(i, :) = temDataMod;
 
-    
     % Plot fit with data.
-%     getFitPlot(fitresult,xData,yData,fittingView,strcat("WAL fitting result of ",temperatureForTag(i)),256,"\DeltaG (e^2/h)");
-%     figure( 'Name', strcat("WAL fitting for ",temperatureForTag(i)) );
-%     plot( fitresult, xData, yData ,'o');
-%     legend( 'Data points', 'Fitting curve', 'Location', 'NorthEast' );
-%     title(strcat("WAL fitting for ",temperatureForTag(i)))
-    % Label axes
-%     xlabel {H_{ex} (T)}
-%     ylabel {\DeltaG (e^2/h)}
-%     grid on
-    %%
-    
+    [dataPoint{i,1},fittingCurve{i,1}]=getFitPlot(fitresult,xData,yDataSigma,fittingView,strcat("WAL fitting result of ",temperatureForTag(i)),256,"\Delta\sigma (e^2/h)");     
+
+
     
 end
 delete(gcp('nocreate'))
-clearvars xWal yWal xData yData fitresult ftLinear gof temConfidence temFitresultWAL opts fitresultLinear gofLinear
+clearvars xWal yWal xData yData fitresult ftLinear gof temConfidence temFitresultWAL opts fitresultLinear gofLinear temx temy weight
 %% Plot fitting with data
 dataPoint=cell(number/2,1);
 fittingCurve=cell(number/2,1);
@@ -486,6 +521,10 @@ clearvars i path
 fprintf("Program completed.\n")
 toc
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function [x,y] = importfile(filename, startRow, endRow)
 %% Initialization
 delimiter = '\t';
@@ -540,7 +579,7 @@ plot(x,y,'o','LineWidth',2.5)
 set(gcf,'position',[800 100 800 600]);
 xlim([1.1*min(x)-0.1*max(x) 1.1*max(x)-0.1*min(x)]);
 ylim([1.1*min(y)-0.1*max(y) 1.1*max(y)-0.1*min(y)]);
-set(gca, 'linewidth', 1.1,'fontname', 'Helvetica', 'FontSize',18)
+set(gca, 'linewidth', 1.1,'fontname', 'Helvetica', 'FontSize',18);
 if nargin >= 4
     set(fig,'Name',titleOfPlot);
     title(titleOfPlot);
